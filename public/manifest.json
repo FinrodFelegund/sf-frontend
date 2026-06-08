@@ -3,13 +3,14 @@
     "version": "3.0.0",
     "name": "Storyfinder",
     "action": {
-        "default_popup": "index.html"
+        "default_popup": "popup.html"
     },
     "side_panel": {
         "default_path": "index.html"
     },
     "permissions": [
-        "sidePanel"
+        "sidePanel",
+        "storage"
     ],
     "host_permissions": [
         "http://*/*",

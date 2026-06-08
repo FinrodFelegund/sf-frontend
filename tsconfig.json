@@ -1,15 +1,23 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
-  ],
   "compilerOptions": {
     "ignoreDeprecations": "6.0",
+    "target": "es2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
     },
-    "noEmit": true,
-  }
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+    "allowJs": true,
+    "types": ["vite/client", "node", "chrome"],
+    "verbatimModuleSyntax": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noEmit": true
+  },
+  "include": ["src", "lib", "components", "vite.config.ts"]
 }

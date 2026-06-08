@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from "path"
+import path, { resolve } from "path"
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -10,4 +10,13 @@ export default defineConfig({
     },
   },
   plugins: [react()],
+  build: {
+    emptyOutDir: true,
+    rolldownOptions: {
+      input: {
+        sidepanel: resolve(__dirname, "index.html"),
+        popup: resolve(__dirname, 'popup.html'),
+      }
+    }
+  }
 })
