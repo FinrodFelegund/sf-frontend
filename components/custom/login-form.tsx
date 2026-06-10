@@ -29,7 +29,7 @@ export function Login({
         setIsLoading(true)
         
         try {
-            login({ username: userName, password: password})
+            await login({ username: userName, password: password})
             checkAuth()
             setCurrentView("home")
         } catch(error){

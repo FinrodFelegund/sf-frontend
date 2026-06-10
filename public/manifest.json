@@ -10,10 +10,25 @@
     },
     "permissions": [
         "sidePanel",
-        "storage"
+        "storage",
+        "cookies",
+        "tabs",
+        "scripting"
     ],
     "host_permissions": [
+        "http://localhost:8000/*",
         "http://*/*",
         "https://*/*"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["content.js"]
+        }
     ]
+
+    
 }
