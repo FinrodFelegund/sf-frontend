@@ -1,4 +1,4 @@
-import type { LoginRequest, User } from "./types";
+import type { LoginRequest, User, RegisterRequest, UnlockRequest } from "./types";
 import { API_BASE_URL, ensureCSRFToken, getCookie } from "./client";
 
 export async function setUser(user: User){
@@ -29,42 +29,35 @@ export async function removeAuthToken(){
 }
 
 export async function login(credentials: LoginRequest): Promise<void> {
-    console.log("Hello from login")
     await ensureCSRFToken()
-    console.log("Ensured csrf")
     const cookie = await getCookie()
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/auth/login/`, {
-        'method': 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            ...(cookie ? { 'x-CSRFToken':  cookie! } : {})
-        },
-        credentials: 'include',
-        body: JSON.stringify(credentials),
-    });
+    try {
 
-    console.log(response)
+        const response = await fetch(`${API_BASE_URL}/api/v1/auth/login/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(cookie ? { 'x-CSRFToken':  cookie! } : {})
+            },
+            credentials: 'include',
+            body: JSON.stringify(credentials),
+        });
 
-    if(!response.ok){
-        throw new Error('Login failed');
+        const user = await response.json() as User;
+        if(user.token){
+            await setAuthToken(user.token);
+        }
+        await setUser(user);
+    } catch(error){
+        throw new Error('Login failed:' + error);
     }
-
-    const user = await response.json() as User;
-    
-
-    if(user.token){
-        await setAuthToken(user.token);
-    }
-    await setUser(user);
 }
 
 export async function logout(): Promise<void> {
     const token = await getAuthToken()
     const cookie = await getCookie()
 
-    console.log(token)
-    console.log(cookie)
 
     try {
         await fetch(`${API_BASE_URL}/api/v1/auth/logout/`, {
@@ -77,9 +70,33 @@ export async function logout(): Promise<void> {
             credentials: 'include'
         })
     } catch(error){
-        console.error("Logout failed: ", error)
+        throw new Error("Logout failed: " + error)
     }
 
     await removeAuthToken()
     await removeUser()
+}
+
+export async function register(credentials: RegisterRequest): Promise<Array<number>> {
+    await ensureCSRFToken()
+    const cookie = await getCookie()
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/v1/auth/register/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(cookie ? { 'x-CSRFToken':  cookie! } : {})
+            },
+            credentials: 'include',
+            body: JSON.stringify(credentials),
+        })
+
+        const registerResponse = await response.json() as UnlockRequest
+        return registerResponse.unlockcode
+        
+    } catch(error){
+        throw new Error("Failed to register user: " + error)
+    }
+
 }

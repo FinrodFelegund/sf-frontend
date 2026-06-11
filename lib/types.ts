@@ -18,6 +18,23 @@ export type LoginResponse = {
     };
 };
 
+export type RegisterRequest = {
+    username: string;
+    firstname: string;
+    lastname: string;
+    password: string;
+    email: string;
+}
+
+export type UnlockRequest = {
+    unlockcode: Array<number>;
+    user?: {
+        id: number;
+        username: string;
+    }
+}
+
+
 export type User = {
     token: string;
     user: {
@@ -31,3 +48,4 @@ export type User = {
         last_login: string;
     };
 };
+

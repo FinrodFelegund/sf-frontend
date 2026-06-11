@@ -23,7 +23,7 @@ export function Login({
     const { t } = useLanguage()
     const { checkAuth } = useAuth()
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
         setError("")
         setIsLoading(true)
@@ -43,7 +43,7 @@ export function Login({
         <div className="flex flex-col gap-6">
             <Card className="overflow-hidden p-0">
                 <CardContent className="grid p-0">
-                    <form className="p-6 md:p-8" onSubmit={handleSubmit}>
+                    <form className="p-6 md:p-8" onSubmit={handleLogin}>
                         <FieldGroup>
                             <div className="flex flex-col items-center gap-2 text-center">
                                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-2">

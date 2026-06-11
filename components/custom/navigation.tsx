@@ -74,8 +74,8 @@ export function Navigation({
                             <NavigationMenuItem>
                                 <NavigationMenuLink
                                     className={`${navigationMenuTriggerStyle()} cursor-pointer`}
-                                    onClick={() => {setCurrentView("signup")}}
-                                    active={currentView==="signup"}
+                                    onClick={() => {setCurrentView("register")}}
+                                    active={currentView==="register"}
                                 >
                                     Sign Up
                                 </NavigationMenuLink>

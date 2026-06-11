@@ -4,6 +4,7 @@ import { Home } from "@/components/custom/home-form"
 import { Login } from "@/components/custom/login-form"
 import { Graph } from "@/components/custom/graph-form"
 import { Chat } from "@/components/custom/chat-form"
+import { Register } from "@/components/custom/register-form"
 
 type Message = {
   action: string,
@@ -75,18 +76,24 @@ export function App() {
 
         case "login":
           return (
-            <Login setCurrentView={setCurrentViewState}/>
+            <Login setCurrentView={setCurrentViewState} />
+          )
+        
+        case "register":
+          return (
+            <Register setCurrentView={setCurrentViewState} />
           )
 
         case "graph":
           return (
-            <Graph currentUrl={currentUrl}/>
+            <Graph currentUrl={currentUrl} />
           )
 
         case "chat":
           return (
             <Chat currentUrl={currentUrl} />
           )
+
 
       default:
         return null
