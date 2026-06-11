@@ -101,17 +101,16 @@ export function App() {
   }
 
   return (
-  <main>
-    <Navigation 
-      currentView={currentView}
-      setCurrentView={setCurrentViewState}
-    />
-    <section className="flex-1 p-4">
-      {renderView()}
-    </section>
-
-   
-  </main>)
+    <main>
+      <Navigation 
+        currentView={currentView}
+        setCurrentView={setCurrentViewState}
+      />
+      <section className="flex-1 p-4">
+        {renderView()}
+      </section>
+    </main>
+  )
 }
 
 
