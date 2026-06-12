@@ -5,7 +5,7 @@ import { Field, FieldGroup, FieldLabel} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { GraduationCap } from "lucide-react"
-import { useLanguage } from "@/src/language-hook"
+import { useLanguage } from "@/hooks/language-hook"
 import { register } from "@/lib"
 
 interface RegisterProps {

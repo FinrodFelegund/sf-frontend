@@ -1,3 +1,16 @@
+export type Sitedata = {
+  url: string,
+  text: string,
+}
+
+export type Message = {
+  action: string,
+  data: Sitedata,
+}
+
+export type GraphResponse = {
+    src: string
+}
 
 
 export type LoginRequest = {

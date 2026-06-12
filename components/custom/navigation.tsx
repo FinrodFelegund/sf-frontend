@@ -10,9 +10,9 @@ import { Button } from "@/components/ui/button"
 
 import { LogOut, Moon, Sun } from "lucide-react"
 
-import { useAuth } from "@/src/authentication-hook"
-import { useLanguage } from "@/src/language-hook"
-import { useTheme } from "@/src/theme-hook"
+import { useAuth } from "@/hooks/authentication-hook"
+import { useLanguage } from "@/hooks/language-hook"
+import { useTheme } from "@/hooks/theme-hook"
 import { logout } from "@/lib"
 
 interface NavigationProps {

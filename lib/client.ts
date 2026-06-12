@@ -30,11 +30,11 @@ export async function ensureCSRFToken(): Promise<void> {
 }
 
 export async function getAuthHeaders(): Promise<HeadersInit> {
-    const token = await chrome.storage.local.get(['auth_token'])
+    const token = (await chrome.storage.local.get(['auth_token']))
     const csrfToken = await getCookie()
     return {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Token ${token}` } : {}),
+        ...(token ? { 'Authorization': `Token ${token.auth_token}` } : {}),
         ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {})
     }
 }

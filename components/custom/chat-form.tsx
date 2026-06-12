@@ -1,15 +1,16 @@
 import { Bot, User, Send, Trash } from "lucide-react"
 
 import { MarkdownMessage } from "@/components/custom/markdown-message"
-import { useLanguage } from "@/src/language-hook"
+import { useLanguage } from "@/hooks/language-hook"
 
 import { useState, useEffect, useRef } from "react"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Sitedata } from "@/lib"
 
-export function Chat({currentUrl}: {currentUrl: string}){
+export function Chat({currentSite}: {currentSite: Sitedata | null}){
     const { t } = useLanguage()
     const [input, setInput] = useState("")
     const [isLoading, setIsLoading] = useState(false)
@@ -72,7 +73,7 @@ export function Chat({currentUrl}: {currentUrl: string}){
                     {/* Some information about the url or w/e */}
                     <div className="flex items-center w-full">
                         <p className="text-sm text-muted-foreground">
-                            {currentUrl}
+                            {currentSite ? currentSite.url : ""}
                         </p>
                     </div>
                 </div>

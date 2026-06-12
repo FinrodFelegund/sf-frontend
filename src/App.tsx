@@ -5,20 +5,15 @@ import { Login } from "@/components/custom/login-form"
 import { Graph } from "@/components/custom/graph-form"
 import { Chat } from "@/components/custom/chat-form"
 import { Register } from "@/components/custom/register-form"
+import type { Sitedata, Message } from "@/lib/types" 
 
-type Message = {
-  action: string,
-  data: {
-    url: string,
-    text: string,
-  }
-}
+
 
 export function App() {
 
 
   const [currentView, setCurrentView] = useState("home")
-  const [currentUrl, setCurrentUrl] = useState("")
+  const [currentSite, setCurrentSite] = useState<Sitedata | null>(null)
 
   const setCurrentViewState = async (view: string) => {
     await chrome.storage.local.set({"view": view})
@@ -50,13 +45,13 @@ export function App() {
   useEffect(() => {
     chrome.runtime.sendMessage({ action: "REQUEST_DATA"}, (response) => {
       if(response && response.text){
-        setCurrentUrl(response.url)
+        setCurrentSite(response.data)
       }
     })
 
     const handleRuntimeMessages = (message: Message) => {
       if(message.action === "NEW_SITE_DATA"){
-        setCurrentUrl(message.data.url)
+        setCurrentSite(message.data)
       }
     }
 
@@ -86,12 +81,12 @@ export function App() {
 
         case "graph":
           return (
-            <Graph currentUrl={currentUrl} />
+            <Graph currentSite={currentSite ? currentSite : null} />
           )
 
         case "chat":
           return (
-            <Chat currentUrl={currentUrl} />
+            <Chat currentSite={currentSite ? currentSite: null} />
           )
 
 

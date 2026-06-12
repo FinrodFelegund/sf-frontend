@@ -1,5 +1,5 @@
 function getPageText(){
-    return document.body.innerText || ""
+    return document.documentElement.outerHTML || ""
 }
 
 
