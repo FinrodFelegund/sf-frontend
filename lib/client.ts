@@ -15,7 +15,6 @@ export async function getCookie(): Promise<string | null>{
 }
 
 export async function ensureCSRFToken(): Promise<void> {
-    console.log("Base url: ", API_BASE_URL)
     const cookie = await getCookie()
     if(!cookie){
         const response = await fetch(`${API_BASE_URL}/api/v1/csrf/`, {

@@ -2,35 +2,23 @@ import { Bot, User, Send, Trash } from "lucide-react"
 
 import { MarkdownMessage } from "@/components/custom/markdown-message"
 import { useLanguage } from "@/hooks/language-hook"
-
+import { useChatSession } from "@/hooks/chat-hook"
 import { useState, useEffect, useRef } from "react"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Sitedata } from "@/lib"
+import { type Sitedata, type Message } from "@/lib"
 
-export function Chat({currentSite}: {currentSite: Sitedata | null}){
+
+export function Chat({currentSite, initialMessages}: {currentSite: Sitedata, initialMessages: Message[]}){
     const { t } = useLanguage()
     const [input, setInput] = useState("")
-    const [isLoading, setIsLoading] = useState(false)
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
-    const messages = [
-        {
-            id: 1, 
-            role: 'assistant',
-            content: 'Hello, you can chat with me about the current webpage',
-            timestamp: new Date(),
-        },
-        {
-            id: 2,
-            role: 'user',
-            content: 'what are the panama papers?',
-            timestamp: new Date(),
-        },
-    ]
+
+    const { messages, isLoading, sendMessage } = useChatSession({currentSite, initialMessages})
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -43,12 +31,13 @@ export function Chat({currentSite}: {currentSite: Sitedata | null}){
         }
     }
 
-    const handleSend = () => {
+    const  handleSend = async () => {
         if(!input.trim() || isLoading){
             return
         }
         console.log("Sending " + input)
         setInput("")
+        sendMessage(input.trim())
     } 
 
     const handleDelete = () => {
@@ -61,9 +50,8 @@ export function Chat({currentSite}: {currentSite: Sitedata | null}){
 
     useEffect(() => {
         scrollToBottom()
-        setIsLoading(false)
+        //setIsLoading(false)
     }, [messages])
-
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)] w-full bg-background">
@@ -81,7 +69,7 @@ export function Chat({currentSite}: {currentSite: Sitedata | null}){
             {/* Messages */}
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
                 {messages.map((message) => (
-                    <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div key={message.chat_message_id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         {message.role === 'assistant' && (
                             <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center">
                                 <Bot className="w-5 h-5 text-primary-foreground" />

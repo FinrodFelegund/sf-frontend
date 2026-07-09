@@ -5,7 +5,8 @@ import { Login } from "@/components/custom/login-form"
 import { Graph } from "@/components/custom/graph-form"
 import { Chat } from "@/components/custom/chat-form"
 import { Register } from "@/components/custom/register-form"
-import type { Sitedata, Message } from "@/lib/types" 
+import type { Sitedata, RuntimeMessage } from "@/lib/types" 
+import { useLanguage } from "@/hooks/language-hook"
 
 
 
@@ -14,6 +15,7 @@ export function App() {
 
   const [currentView, setCurrentView] = useState("home")
   const [currentSite, setCurrentSite] = useState<Sitedata | null>(null)
+  const { t } = useLanguage()
 
   const setCurrentViewState = async (view: string) => {
     await chrome.storage.local.set({"view": view})
@@ -49,7 +51,7 @@ export function App() {
       }
     })
 
-    const handleRuntimeMessages = (message: Message) => {
+    const handleRuntimeMessages = (message: RuntimeMessage) => {
       if(message.action === "NEW_SITE_DATA"){
         setCurrentSite(message.data)
       }
@@ -86,7 +88,12 @@ export function App() {
 
         case "chat":
           return (
-            <Chat currentSite={currentSite ? currentSite: null} />
+            <Chat currentSite= {currentSite ? currentSite : {"url": "", "text": ""}} initialMessages={[{
+              chat_message_id: "welcome-message",
+              role: "assistant",
+              content: t("chat.initial-message"),
+              timestamp: new Date()
+            }]} />
           )
 
 

@@ -3,13 +3,39 @@ export type Sitedata = {
   text: string,
 }
 
-export type Message = {
-  action: string,
-  data: Sitedata,
+export type RuntimeMessage = {
+    action: string,
+    data: Sitedata,
 }
+
 
 export type GraphResponse = {
     src: string
+}
+
+
+export type ChatHistory = {
+
+    messages: Message[];
+}
+
+export type ChatMessage = {
+    url: string,
+    text: string,
+    message: Message
+}
+
+export type SSEChunk = {
+    content: string;
+    chat_history_id?: number;
+    done: boolean;
+}
+
+export type Message = {
+    chat_message_id: string,
+    role: 'user' | 'assistant',
+    content: string
+    timestamp: Date
 }
 
 
