@@ -9,11 +9,6 @@ export type RuntimeMessage = {
 }
 
 
-export type GraphResponse = {
-    src: string
-}
-
-
 export type ChatHistory = {
 
     messages: Message[];
@@ -26,7 +21,7 @@ export type ChatMessage = {
     message: Message
 }
 
-export type SSEChunk = {
+export type SSEChunkChat = {
     content: string;
     chat_history_id?: number;
     done: boolean;
@@ -88,4 +83,33 @@ export type User = {
         last_login: string;
     };
 };
+
+
+/* Graph Types */
+
+export type Node = {
+    id?: string,
+    label: string,
+    caption: string,
+}
+
+export type Link = {
+    id?: string,
+    sentence?: string,
+    relation_type?: string,
+    source: string,
+    target: string,
+}
+
+export type GraphResponse = {
+    nodes: Node[],
+    links: Link[],
+}
+
+
+export type SSEChunkGraph = {
+    nodes?: Node[],
+    links?: Link[],
+    done: boolean,
+}
 

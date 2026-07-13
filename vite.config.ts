@@ -17,6 +17,7 @@ export default defineConfig({
         sidepanel: resolve(__dirname, "index.html"),
         popup: resolve(__dirname, 'popup.html'),
       }
-    }
+    },
+    chunkSizeWarningLimit: 1000,
   }
 })

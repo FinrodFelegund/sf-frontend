@@ -1,8 +1,8 @@
 import { API_BASE_URL, ensureCSRFToken, getAuthHeaders } from "./client";
-import { ChatMessage, type SSEChunk } from "./types";
+import { ChatMessage, type SSEChunkChat } from "./types";
 
 
-export async function* fetchSSE(url: string, options: RequestInit): AsyncGenerator<SSEChunk>{
+export async function* fetchSSE(url: string, options: RequestInit): AsyncGenerator<SSEChunkChat>{
     
     const response = await fetch(url, options)
     if(!response.ok){
@@ -18,7 +18,7 @@ export async function* fetchSSE(url: string, options: RequestInit): AsyncGenerat
     let buffer = ''
     let chatHistoryId: number | undefined = 0
 
-    const processEvent = (rawEvent: string): SSEChunk | null => {
+    const processEvent = (rawEvent: string): SSEChunkChat | null => {
         const event = rawEvent.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
         const lines = event.split('\n');
@@ -88,8 +88,8 @@ export async function* fetchSSE(url: string, options: RequestInit): AsyncGenerat
             content: parsedData,
             chat_history_id: chatHistoryId,
             done: false,
-        };
-    };
+        }
+    }
 
     try {
         while(true){
@@ -120,14 +120,14 @@ export async function* fetchSSE(url: string, options: RequestInit): AsyncGenerat
             
         }
     } catch(error){
-        throw new Error("Error streaming LLM response:" + error)
+        throw new Error("Error streaming LLM Chat Response:" + error)
     } finally {
         reader.releaseLock()
     }
 }
 
 
-export async function* sendChatStream(message: ChatMessage): AsyncGenerator<SSEChunk>{
+export async function* sendChatStream(message: ChatMessage): AsyncGenerator<SSEChunkChat>{
     await ensureCSRFToken()
     const headers = await getAuthHeaders()
 
