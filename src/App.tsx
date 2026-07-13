@@ -107,6 +107,7 @@ export function App() {
       <Navigation 
         currentView={currentView}
         setCurrentView={setCurrentViewState}
+        currentUrl={currentSite ? currentSite.url : "no url provided"}
       />
       <section className="flex-1 p-4">
         {renderView()}

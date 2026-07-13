@@ -24,11 +24,12 @@ export function useChatSession({
                 id: Date.now().toString(),
                 role: m.role,
                 content: m.content,
-                timestamp: m.timestamp,
+                timestamp: new Date(Date.now()),
             }
             ))
 
             setMessages([...initialMessages, ...chatMessages])
+            console.log(messages)
         }
 
         loadChatHistory()

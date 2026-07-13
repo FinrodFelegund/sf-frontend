@@ -1,11 +1,6 @@
 import { API_BASE_URL, ensureCSRFToken, getAuthHeaders } from "./client";
 import { ChatMessage, type SSEChunk } from "./types";
 
-function processEvent(event: string){
-
-    return ""
-}
-
 
 export async function* fetchSSE(url: string, options: RequestInit): AsyncGenerator<SSEChunk>{
     
@@ -23,6 +18,79 @@ export async function* fetchSSE(url: string, options: RequestInit): AsyncGenerat
     let buffer = ''
     let chatHistoryId: number | undefined = 0
 
+    const processEvent = (rawEvent: string): SSEChunk | null => {
+        const event = rawEvent.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+        const lines = event.split('\n');
+        const dataLines: string[] = [];
+
+        for (const line of lines) {
+            if (line.startsWith('data:')) {
+                dataLines.push(line.slice(5).replace(/^ /, ''));
+            }
+        }
+
+        if (dataLines.length === 0) {
+            return null;
+        }
+
+        const data = dataLines.join('\n');
+
+        if (data === '[DONE]') {
+            return {
+                content: '',
+                chat_history_id: chatHistoryId,
+                done: true,
+            };
+        }
+
+        if (!data) {
+            return null;
+        }
+
+        let parsedData = data;
+
+        if (parsedData.startsWith('"')) {
+            try {
+                parsedData = JSON.parse(parsedData);
+            } catch {
+                // keep original string
+            }
+        }
+
+        if (parsedData.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(parsedData);
+
+                if (parsed.error) {
+                    throw new Error(`Backend error: ${parsed.error}`);
+                }
+
+                if (parsed.chat_history_id) {
+                    chatHistoryId = parsed.chat_history_id;
+                }
+
+                if (typeof parsed.content === 'string') {
+                    return {
+                        content: parsed.content,
+                        chat_history_id: chatHistoryId,
+                        done: false,
+                    };
+                }
+
+                return null;
+            } catch {
+                // If it's not valid JSON content, fall through and treat it as text
+            }
+        }
+
+        return {
+            content: parsedData,
+            chat_history_id: chatHistoryId,
+            done: false,
+        };
+    };
+
     try {
         while(true){
             const { done, value } = await reader.read()
@@ -39,7 +107,15 @@ export async function* fetchSSE(url: string, options: RequestInit): AsyncGenerat
 
 
             for (const event of events){
-                yield { content: processEvent(event), chat_history_id: chatHistoryId, done: false}
+                const result = processEvent(event)
+
+                if(result){
+                    yield result
+                }
+
+                if(result?.done){
+                    return
+                }
             }
             
         }

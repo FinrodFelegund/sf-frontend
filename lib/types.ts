@@ -20,6 +20,7 @@ export type ChatHistory = {
 }
 
 export type ChatMessage = {
+    chat_history_id?: number,
     url: string,
     text: string,
     message: Message

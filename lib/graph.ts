@@ -1,7 +1,7 @@
 import { API_BASE_URL, ensureCSRFToken, getAuthHeaders } from "./client"
 import { GraphResponse, Sitedata } from "./types"
 
-export async function request_graph(sitedata: Sitedata){
+export async function requestGraph(sitedata: Sitedata){
     await ensureCSRFToken()
     const headers = await getAuthHeaders()
 

@@ -17,7 +17,7 @@ function handleSiteChange(tabId){
 
         chrome.tabs.sendMessage(tabId, { action: "EXTRACT_TEXT" }, (response) => {
             if(chrome.runtime.lastError){
-                console.warn("Content scrpt unreachable:", chrome.runtime.lastError.message)
+                console.warn("Content script unreachable:", chrome.runtime.lastError.message)
                 return
             }
 

@@ -17,12 +17,14 @@ import { logout } from "@/lib"
 
 interface NavigationProps {
     currentView: string,
-    setCurrentView: (value: string) => void
+    setCurrentView: (value: string) => void,
+    currentUrl: string,
 }
 
 export function Navigation({
     currentView,
-    setCurrentView
+    setCurrentView,
+    currentUrl,
 }: NavigationProps) {
     const { isAuthenticated, checkAuth } = useAuth()
     const { language, setLanguageState } = useLanguage()
@@ -106,6 +108,14 @@ export function Navigation({
                             </NavigationMenuItem>
                         </>
                     )}
+                    {
+                        <>
+                            <NavigationMenuItem>
+                                {currentUrl}
+                            </NavigationMenuItem>
+                        </>
+                        
+                    }
                 </NavigationMenuList>
             </NavigationMenu>
             <div className="flex items-center gap-2">

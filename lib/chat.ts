@@ -1,5 +1,6 @@
 import { API_BASE_URL, ensureCSRFToken, getAuthHeaders } from "./client";
 
+
 export async function fetchChatHistory(){
     await ensureCSRFToken()
     const headers = await getAuthHeaders()
