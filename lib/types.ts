@@ -87,13 +87,13 @@ export type User = {
 
 /* Graph Types */
 
-export type Node = {
+export type GraphNode = {
     id?: string,
     label: string,
     caption: string,
 }
 
-export type Link = {
+export type GraphLink = {
     id?: string,
     sentence?: string,
     relation_type?: string,
@@ -102,14 +102,14 @@ export type Link = {
 }
 
 export type GraphResponse = {
-    nodes: Node[],
-    links: Link[],
+    nodes: GraphNode[],
+    links: GraphLink[],
 }
 
 
 export type SSEChunkGraph = {
-    nodes?: Node[],
-    links?: Link[],
+    nodes: GraphNode[],
+    links: GraphLink[],
     done: boolean,
 }
 

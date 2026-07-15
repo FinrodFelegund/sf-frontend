@@ -15,7 +15,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { SetStateAction, useState } from "react"
-import { Link, Node, Sitedata } from "@/lib"
+import { GraphLink, GraphNode, Sitedata, cn } from "@/lib"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Plus } from "lucide-react"
@@ -34,13 +34,14 @@ const entityTypes: EntityLabel[] = [
 ]
 
 interface GraphAnnotationProps {
+    className: string,
     currentSite: Sitedata,
-    addEntity: (entity: Node) => {},
-    addRelation: (relation: Link) => {},
+    addEntity: (entity: GraphNode) => {},
+    addRelation: (relation: GraphLink) => {},
     isLoading: boolean
 }
 
-export function GraphAnnotation({ currentSite, addEntity, addRelation, isLoading }: GraphAnnotationProps){
+export function GraphAnnotation({ className, currentSite, addEntity, addRelation, isLoading }: GraphAnnotationProps){
     currentSite
     const [currentView, setCurrentView] = useState<"Nodes" | "Links">("Nodes")
     const [curEntityType, setCurEntityType] = useState("PERSON")
@@ -65,7 +66,7 @@ export function GraphAnnotation({ currentSite, addEntity, addRelation, isLoading
     }
 
     return (
-        <div className="flex flex-row gap-6 items-start">
+        <div className={cn(className, "flex", "flex-row", "gap-6", "items-start")}>
             {/* Left: the form menu */}
             <Card className="flex-1">
                 <CardContent>
@@ -89,7 +90,7 @@ export function GraphAnnotation({ currentSite, addEntity, addRelation, isLoading
                                     <ComboboxInput placeholder="Select an Entity Type" />
                                     <ComboboxContent>
                                         <ComboboxList>
-                                            {(enttype) => (
+                                            {(enttype: EntityLabel) => (
                                                 <ComboboxItem key={enttype.spacy} value={enttype}>
                                                     {enttype.readable}
                                                 </ComboboxItem>

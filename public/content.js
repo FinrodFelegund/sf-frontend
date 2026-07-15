@@ -6,8 +6,10 @@ function getPageText(){
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if(request.action === "EXTRACT_TEXT"){
         sendResponse({
-            text: getPageText(),
-            url: window.location.href,
+            data: {
+                text: getPageText(),
+                url: window.location.href,
+            }
         })
     }
 })

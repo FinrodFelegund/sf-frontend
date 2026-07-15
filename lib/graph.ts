@@ -1,5 +1,5 @@
 import { API_BASE_URL, ensureCSRFToken, getAuthHeaders } from "./client"
-import { GraphResponse, Sitedata, Node, Link, SSEChunkGraph } from "./types"
+import { Sitedata, GraphNode, GraphLink, SSEChunkGraph, GraphResponse } from "./types"
 
 export async function* fetchSEE(url: string, options: RequestInit){
     const response = await fetch(url, options)
@@ -62,17 +62,16 @@ export async function* fetchSEE(url: string, options: RequestInit){
                 if (parsed.error) {
                     throw new Error(`Backend error: ${parsed.error}`);
                 }
-
-
+       
                 if(parsed.type === "nodes"){
                     return {
                         nodes: parsed["nodes"],
                         links: [],
                         done: false,
-                    };
+                    }
                 }
 
-                if(parsed.type === '"links'){
+                if(parsed.type === "links"){
                     return {
                         nodes: [],
                         links: parsed["links"],
@@ -127,7 +126,7 @@ export async function* sendGraphStream(sitedata: Sitedata): AsyncGenerator<SSECh
     await ensureCSRFToken()
     const headers = await getAuthHeaders()
 
-    yield* fetchSEE(`${API_BASE_URL}/api/v1/graph/`, {
+    yield* fetchSEE(`${API_BASE_URL}/api/v1/graph`, {
         method: 'POST',
         headers: headers,
         credentials: 'include',
@@ -136,18 +135,37 @@ export async function* sendGraphStream(sitedata: Sitedata): AsyncGenerator<SSECh
 
 }
 
-export async function requestAddEntity(entity: Node, website: Sitedata){
+export async function requestGraph(sitedata: Sitedata){
+    await ensureCSRFToken()
+    const headers = await getAuthHeaders()
+    const params = new URLSearchParams({url: sitedata.url, text: ""})
+
+    try {
+        const response = await fetch (`${API_BASE_URL}/api/v1/graph?${params.toString()}`, {
+        method: 'GET',
+        headers: headers,
+        credentials: 'include',
+    })
+
+    return await response.json() as GraphResponse
+
+    } catch(error){
+        throw new Error("Requesting graph failed:" + error)
+    }
+}
+
+export async function requestAddEntity(entity: GraphNode, website: Sitedata){
     await ensureCSRFToken()
     const headers = await getAuthHeaders()
     try {
-        const response = await fetch(`${API_BASE_URL}/api/v1/web/entities/`, {
+        const response = await fetch(`${API_BASE_URL}/api/v1/web/entities`, {
             method: 'POST',
             headers: headers,
             credentials: 'include',
             body: JSON.stringify({entity: entity, website: website})
         })
     
-        return await response.json() as Node
+        return await response.json() as GraphNode
         
     } catch(error){
         throw new Error("Adding node Request failed:" + error)
@@ -165,7 +183,7 @@ export async function requestAddRelation(entity1: string, entity2: string, relat
             body: JSON.stringify({entity1: entity1, entity2: entity2, relation_type: relation_type, website: website})
         })
     
-        return await response.json() as Link
+        return await response.json() as GraphLink
     
     } catch(error){
         throw new Error("Adding node Request failed:" + error)

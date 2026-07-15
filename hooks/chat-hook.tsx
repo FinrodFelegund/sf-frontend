@@ -29,7 +29,6 @@ export function useChatSession({
             ))
 
             setMessages([...initialMessages, ...chatMessages])
-            console.log(messages)
         }
 
         loadChatHistory()

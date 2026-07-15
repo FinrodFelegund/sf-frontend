@@ -25,8 +25,8 @@ function handleSiteChange(tabId){
                 chrome.runtime.sendMessage({
                     action: "NEW_SITE_DATA",
                     data: {
-                        url: response.url,
-                        text: response.text,
+                        url: response.data.url,
+                        text: response.data.text,
                     }
                 }).catch(() => {})
             }
@@ -63,5 +63,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
         })
         return true
+    }
+})
+
+
+chrome.runtime.onInstalled.addListener(async () => {
+    const tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] })
+    for (const tab of tabs) {
+        chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ["content.js"],
+        }).catch(() => {}) // some tabs (chrome://, web store) will refuse; fine
     }
 })

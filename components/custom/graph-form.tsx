@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react"
 import { Button } from "../ui/button"
-import { requestAddEntity, requestAddRelation, sendGraphStream } from "@/lib/graph"
-import { GraphResponse, Link, Node, Sitedata } from "@/lib"
+import { requestAddEntity, requestAddRelation, requestGraph, sendGraphStream } from "@/lib/graph"
+import { GraphResponse, type GraphLink, type GraphNode, type Sitedata } from "@/lib"
 import { GraphAnnotation } from "@/components/custom/graph-annotation"
 import { useLanguage } from "@/hooks/language-hook"
 import ForceGraph2D from "react-force-graph-2d"
@@ -23,6 +23,8 @@ export function Graph({currentSite}: {currentSite: Sitedata | null}){
     const [dims, setDims] = useState({width: 0, height: 0})
     const [graphData, setGraphData] = useState<GraphResponse>({"nodes": [], "links": []})
     const containerRef = useRef<HTMLDivElement>(null)
+    const [hoverItem, setHoverItem] = useState<string | null>(null)
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0})
     
     useEffect(() => {
         if(!containerRef.current){
@@ -44,6 +46,14 @@ export function Graph({currentSite}: {currentSite: Sitedata | null}){
             if(!currentSite || !currentSite.url.trim()){
                 return
             }
+            setIsLoading(true)
+
+            const graphdata = await requestGraph(currentSite)
+            setGraphData(prev => ({
+                nodes: [...prev.nodes, ...graphdata.nodes],
+                links: [...prev.links, ...graphdata.links]
+            }))
+            setIsLoading(false)
         }
         loadGraph()
 
@@ -61,22 +71,24 @@ export function Graph({currentSite}: {currentSite: Sitedata | null}){
             const stream = sendGraphStream(currentSite)
             //let fullContent = ""
             for await (const chunk of stream){
-                if(chunk.nodes){
-                    setGraphData({
-                        nodes: [...graphData.nodes, chunk.nodes ? chunk.nodes : []],
-                        links: graphData.links,
-                    })
+                if(typeof chunk.nodes !== "undefined" && typeof chunk.links !== "undefined"){
+                    setGraphData(prev => ({
+                            nodes: [...prev.nodes, ...chunk.nodes],
+                            links: [...prev.links, ...chunk.links],
+                        }))
+                    
                 }
             }
+
+            console.log(graphData)
         } catch(error){
             console.error("Graph Streaming error:", error)
         } finally {
             setIsLoading(false)
         }
-            
     }
 
-    const handleAddEntity = async (entity: Node) => {
+    const handleAddEntity = async (entity: GraphNode) => {
 
         if(!currentSite){
             return
@@ -90,7 +102,7 @@ export function Graph({currentSite}: {currentSite: Sitedata | null}){
         setIsLoading(false)
     }
 
-    const handleAddRelation = async (relation: Link) => {
+    const handleAddRelation = async (relation: GraphLink) => {
         if(!currentSite){
             return
         }
@@ -103,14 +115,29 @@ export function Graph({currentSite}: {currentSite: Sitedata | null}){
         setIsLoading(false)
     }
 
-    return (
-        <div className="flex flex-col h-[calc(100vh-4rem)] w-full bg-background">
-            <div>
-                <GraphAnnotation currentSite={currentSite ? currentSite : {url: "no url provided", text: ""}} addEntity={handleAddEntity} addRelation={handleAddRelation} isLoading={isLoading}>
+    useEffect(() => {
+        console.log(graphData)
+    }, [graphData])
 
+    return (
+        <div className="relative flex flex-col h-[calc(100vh-4rem)] w-full bg-background">
+            <div className="absolute top-2 right-2 z-10 w-1/2">
+                <GraphAnnotation
+                    className="m-4"
+                    currentSite={currentSite ? currentSite : {url: "no url provided", text: ""}}
+                    addEntity={handleAddEntity}
+                    addRelation={handleAddRelation}
+                    isLoading={isLoading}>
                 </GraphAnnotation>
             </div>
-            <div ref={containerRef} className="flex-1 min-h-0 px-6 py-2">
+            <div 
+                ref={containerRef}
+                className="flex-1 min-h-0 px-6 py-2"
+                onMouseMove={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top})
+                }}
+            >
                 {dims.width > 0 && (
                     <ForceGraph2D
                         graphData={graphData}
@@ -147,15 +174,27 @@ export function Graph({currentSite}: {currentSite: Sitedata | null}){
                             ctx.fillStyle = color
                             ctx.fill()
                         }}
-                        nodeLabel={(node: any) => node.caption}
+                        linkColor={() => "#e11d48"}
+                        linkWidth={2}
+                        linkCurvature={0.5}
+                        onNodeHover={(node: any) => setHoverItem(node ? `${node.caption} (${node.label})` : null)}
+                        onLinkHover={(link: any) => setHoverItem(link ? (link.relation_type ?? "relation") : null)}
                     />
                 )}
+                {hoverItem && (
+                    <div
+                        className="pointer-events-none absolute z-50 rounded-md bg-primary px-2 py-1 text-xs text-primary-foreground shadow-md"
+                        style={{ left: mousePos.x + 12, top: mousePos.y + 12 }}
+                    >
+                        {hoverItem}
+                    </div>
+                )}
             </div>
-            <div className="flex-1 flex flex-col px-6 py-2">
-                <Button onClick={handleCreateGraph}>
-                    {t("graph.request-graph")}
-                </Button>
-            </div> 
+       
+            <Button className="m-4 shrink" onClick={handleCreateGraph}>
+                {t("graph.request-graph")}
+            </Button>
+  
 
         </div>
     )

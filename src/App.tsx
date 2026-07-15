@@ -46,7 +46,7 @@ export function App() {
 
   useEffect(() => {
     chrome.runtime.sendMessage({ action: "REQUEST_DATA"}, (response) => {
-      if(response && response.text){
+      if(response){
         setCurrentSite(response.data)
       }
     })
@@ -85,7 +85,6 @@ export function App() {
           return (
             <Graph currentSite={currentSite ? currentSite : null} />
           )
-
         case "chat":
           return (
             <Chat currentSite= {currentSite ? currentSite : {"url": "", "text": ""}} initialMessages={[{
