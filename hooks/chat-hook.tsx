@@ -20,14 +20,13 @@ export function useChatSession({
                 return
             }
             const history = await fetchChatHistoryByUrl(currentSite.url)
-            const chatMessages = history.messages.map((m: Message) => ({
-                id: Date.now().toString(),
+            const chatMessages = history.messages.map((m: Message, i: number) => ({
+                chat_message_id: `history-${i}`,
                 role: m.role,
                 content: m.content,
-                timestamp: new Date(Date.now()),
-            }
-            ))
-
+                citations: m.citations ?? [],
+                timestamp: new Date(),
+            }))
             setMessages([...initialMessages, ...chatMessages])
         }
 
@@ -74,6 +73,14 @@ export function useChatSession({
                     fullContent += chunk.content
                     setMessages(prev => prev.map(msg => 
                         msg.chat_message_id === assistantPlaceholder.chat_message_id ? { ...msg, content: fullContent } : msg
+                    ))
+                }
+
+                if(chunk.citations){
+                    setMessages(prev => prev.map(msg =>
+                        msg.chat_message_id === assistantPlaceholder.chat_message_id
+                        ? { ...msg, citations: chunk.citations}
+                        : msg
                     ))
                 }
 

@@ -70,6 +70,15 @@ export async function* fetchSSE(url: string, options: RequestInit): AsyncGenerat
                     chatHistoryId = parsed.chat_history_id;
                 }
 
+                if (Array.isArray(parsed.citations)) {
+                    return {
+                        content: '',
+                        citations: parsed.citations,
+                        chat_history_id: chatHistoryId,
+                        done: false, 
+                    }
+                }
+
                 if (typeof parsed.content === 'string') {
                     return {
                         content: parsed.content,

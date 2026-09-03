@@ -8,7 +8,7 @@ import { useState, useEffect, useRef } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { type Sitedata, type Message } from "@/lib"
+import { highlightSources, clearSourceHighlights, type Sitedata, type Message } from "@/lib"
 
 
 export function Chat({currentSite, initialMessages}: {currentSite: Sitedata, initialMessages: Message[]}){
@@ -19,6 +19,36 @@ export function Chat({currentSite, initialMessages}: {currentSite: Sitedata, ini
     const inputRef = useRef<HTMLInputElement>(null)
 
     const { messages, isLoading, sendMessage } = useChatSession({currentSite, initialMessages})
+
+    const hoverTimer = useRef<number | null>(null)
+
+    const handleMessageEnter = (message: Message) => {
+        if(message.role !== "assistant" || !message.citations?.length){
+            return
+        }
+        if(hoverTimer.current !== null){
+            window.clearTimeout(hoverTimer.current)
+        }
+        hoverTimer.current = window.setTimeout(
+            () => highlightSources(message.citations ?? []),
+            120
+        )
+    }
+
+    const handleMessageLeave = () => {
+        if(hoverTimer.current !== null){
+            window.clearTimeout(hoverTimer.current)
+            hoverTimer.current = null
+        }
+        clearSourceHighlights()
+    }
+
+    useEffect(() => {
+        if(hoverTimer.current !== null){
+            window.clearTimeout(hoverTimer.current)
+        }
+        clearSourceHighlights()
+    }, [])
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -35,7 +65,6 @@ export function Chat({currentSite, initialMessages}: {currentSite: Sitedata, ini
         if(!input.trim() || isLoading){
             return
         }
-        console.log("Sending " + input)
         setInput("")
         sendMessage(input.trim())
     } 
@@ -75,7 +104,19 @@ export function Chat({currentSite, initialMessages}: {currentSite: Sitedata, ini
                                 <Bot className="w-5 h-5 text-primary-foreground" />
                             </div>
                         )}
-                        <div className={`max-w-[70%] rounded-lg px-4 py-2 ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                        <div 
+                            onMouseEnter={() => handleMessageEnter(message)}
+                            onMouseLeave={handleMessageLeave}
+                            className={`max-w-[70%] rounded-lg px-4 py-2 transition-shadow ${
+                                message.role === 'user'
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'bg-muted'
+                            } ${
+                                message.role === 'assistant' && message.citations?.length 
+                                    ? 'cursor-help ring-1 ring-transparent hover:ring-primary/40'
+                                    : ''
+                            }`}
+                        >
                             {message.content ? (
                                 <>
                                     {message.role === 'assistant' ? <MarkdownMessage content={message.content} /> : <p className="text-sm whitespace-pre-wrap">{message.content}</p>}

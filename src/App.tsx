@@ -14,6 +14,7 @@ export function App() {
 
 
   const [currentView, setCurrentView] = useState("home")
+  const [currentGraph, setCurrentGraph] = useState("local")
   const [currentSite, setCurrentSite] = useState<Sitedata | null>(null)
   const { t } = useLanguage()
 
@@ -83,7 +84,7 @@ export function App() {
 
         case "graph":
           return (
-            <Graph currentSite={currentSite ? currentSite : null} />
+            <Graph currentSite={currentSite ? currentSite : null} graphType={currentGraph} />
           )
         case "chat":
           return (
@@ -106,6 +107,7 @@ export function App() {
       <Navigation 
         currentView={currentView}
         setCurrentView={setCurrentViewState}
+        setCurrentGraph={setCurrentGraph}
         currentUrl={currentSite ? currentSite.url : "no url provided"}
       />
       <section className="flex-1 p-4">

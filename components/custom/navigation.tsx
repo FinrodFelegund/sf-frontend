@@ -3,7 +3,10 @@ import {
     NavigationMenuItem,
     NavigationMenuLink,
     NavigationMenuList,
-    navigationMenuTriggerStyle
+    navigationMenuTriggerStyle,
+    NavigationMenuTrigger,
+    NavigationMenuContent,
+
     } from "@/components/ui/navigation-menu"
 
 import { Button } from "@/components/ui/button"
@@ -18,16 +21,18 @@ import { logout } from "@/lib"
 interface NavigationProps {
     currentView: string,
     setCurrentView: (value: string) => void,
+    setCurrentGraph: (value: string) => void,
     currentUrl: string,
 }
 
 export function Navigation({
     currentView,
     setCurrentView,
+    setCurrentGraph,
     currentUrl,
 }: NavigationProps) {
     const { isAuthenticated, checkAuth } = useAuth()
-    const { language, setLanguageState } = useLanguage()
+    const { t, language, setLanguageState } = useLanguage()
     const { theme, setThemeState } = useTheme()
 
     const toggleLanguage = () => {
@@ -46,6 +51,11 @@ export function Navigation({
         } catch(error){
             console.error("Logout failed: ", error)
         }
+    }
+
+    const handleSelectGraph = (isLocalGraphSelected: boolean) => {
+        setCurrentView("graph")
+        isLocalGraphSelected ? setCurrentGraph("local") : setCurrentGraph("global")
     }
 
     return (
@@ -88,13 +98,30 @@ export function Navigation({
                     {isAuthenticated && (
                         <>
                             <NavigationMenuItem>
-                                <NavigationMenuLink
+                                <NavigationMenuTrigger
                                     className={`${navigationMenuTriggerStyle()} cursor-pointer`}
-                                    onClick={() => setCurrentView("graph")}
-                                    active={currentView==="graph"}
-                                >
-                                    Graph
-                                </NavigationMenuLink>
+                                >Graph
+                                </NavigationMenuTrigger>
+                                <NavigationMenuContent className="absolute left-0 w-auto min-w-40">
+                                    <ul className="grid gap-1">
+                                        <li>
+                                            <NavigationMenuLink 
+                                                className="cursor-pointer"
+                                                onSelect={() => handleSelectGraph(true)}>
+                                            {t("navigation.localgraph")}
+                                            </NavigationMenuLink>
+                                        </li>
+                                        <li>
+                                            <NavigationMenuLink
+                                                className="cursor-pointer"
+                                                onSelect={() => handleSelectGraph(false)}>
+                                            {t("navigation.globalgraph")}
+                                            </NavigationMenuLink>
+                                        </li>
+
+                                    </ul>
+                                </NavigationMenuContent>
+
                             </NavigationMenuItem>
 
                             <NavigationMenuItem>

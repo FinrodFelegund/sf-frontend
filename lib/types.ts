@@ -22,16 +22,18 @@ export type ChatMessage = {
 }
 
 export type SSEChunkChat = {
-    content: string;
-    chat_history_id?: number;
-    done: boolean;
+    content: string,
+    citations?: string[],
+    chat_history_id?: number,
+    done: boolean,
 }
 
 export type Message = {
     chat_message_id: string,
     role: 'user' | 'assistant',
-    content: string
-    timestamp: Date
+    content: string,
+    timestamp: Date,
+    citations?: string[],
 }
 
 
@@ -87,21 +89,54 @@ export type User = {
 
 /* Graph Types */
 
+export type GraphWebsite = {
+    id: string,
+    url: string,
+    title?: string,
+    entity_count?: number,
+    updated_at?: string,
+}
+
+export type GraphFocus = {
+    website_ids: string[],
+    tfidf: Record<string, number>,
+}
+
 export type GraphNode = {
     id?: string,
     label: string,
     caption: string,
+    website_count?: number,
+    websites?: GraphWebsite[],
+}
+
+export type GraphSentence = {
+    id?: string,
+    text: string,
+    website?: string,
 }
 
 export type GraphLink = {
     id?: string,
-    sentence?: string,
+    sentences: GraphSentence[],
     relation_type?: string,
-    source: string,
-    target: string,
+    source: GraphNode,
+    target: GraphNode,
 }
 
+export type GraphScore = {
+    id: string,
+    score: number,
+}
+
+
 export type GraphResponse = {
+    nodes: GraphNode[],
+    links: GraphLink[],
+    scores: GraphScore[],
+}
+
+export type GraphData = {
     nodes: GraphNode[],
     links: GraphLink[],
 }
@@ -110,6 +145,11 @@ export type GraphResponse = {
 export type SSEChunkGraph = {
     nodes: GraphNode[],
     links: GraphLink[],
+    scores: GraphScore[],
+    snapshot?: boolean,
     done: boolean,
 }
+
+
+
 

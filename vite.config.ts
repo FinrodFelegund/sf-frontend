@@ -12,6 +12,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     emptyOutDir: true,
+    modulePreload: false,
     rolldownOptions: {
       input: {
         sidepanel: resolve(__dirname, "index.html"),
