@@ -151,4 +151,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ cleared: true})
         return
     }
+
+    if(request.action === "PING"){
+        sendResponse({ ok: true})
+        return false
+    }
 })

@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useCallback } from "react"
 import { Navigation } from "@/components/custom/navigation"
 import { Home } from "@/components/custom/home-form"
@@ -7,21 +8,42 @@ import { Chat } from "@/components/custom/chat-form"
 import { Register } from "@/components/custom/register-form"
 import type { Sitedata, RuntimeMessage } from "@/lib/types" 
 import { useLanguage } from "@/hooks/language-hook"
+import { useAuth } from "@/hooks/authentication-hook"
 
+
+//import formally from "@/src/assets/formally.jpeg"
 
 
 export function App() {
 
-
+  
   const [currentView, setCurrentView] = useState("home")
   const [currentGraph, setCurrentGraph] = useState("local")
   const [currentSite, setCurrentSite] = useState<Sitedata | null>(null)
   const { t } = useLanguage()
+  const { isAuthenticated, isReady } = useAuth()
+
+  const PUBLIC_VIEWS = ["home", "login", "register"]
+
 
   const setCurrentViewState = async (view: string) => {
     await chrome.storage.local.set({"view": view})
     setCurrentView(view)
   }
+
+  useEffect(() => {
+    if(!isReady){
+      return
+    }
+    if(isAuthenticated){
+      return
+    }
+    if(PUBLIC_VIEWS.includes(currentView)){
+      return
+    }
+
+    setCurrentViewState("home")
+  }, [isAuthenticated, isReady, currentView])
 
   const getCurrentViewState = useCallback(async () => {
     const view = await chrome.storage.local.get(["view"])
@@ -33,14 +55,15 @@ export function App() {
 
   useEffect(() => {
     const initializeView = async () => {
-      try {
-        const view: string = await getCurrentViewState()
-        if(view){
-          setCurrentView(view)
+        try {
+          const view: string = await getCurrentViewState()
+          if(view){
+            setCurrentView(view)
+          }
+        } catch(error){
+          console.error("Failed to get view from chrome storage: ", error)
         }
-      } catch(error){
-        console.error("Failed to get view from chrome storage: ", error)
-      }
+      
     }
     initializeView()
   }, [])
@@ -111,10 +134,21 @@ export function App() {
         currentUrl={currentSite ? currentSite.url : "no url provided"}
       />
       <section className="flex-1 p-4">
-        {renderView()}
+        {isReady ? renderView() : null}
       </section>
     </main>
   )
+
+/*  return (
+    <img
+      src={formally}
+      alt={"Formally"}
+      className="h-full w-full object-cover"
+    >
+    
+    </img>
+  )
+*/
 }
 
 

@@ -1,17 +1,18 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from "react"
 import { Button } from "../ui/button"
 import { requestAddNode, requestDeleteNode, requestUpdateNode, requestMergeNodes, requestAddLink, requestUpdateLink, requestGraph, sendGraphStream, requestFocus } from "@/lib/graph"
-import { GraphResponse, type GraphLink, type GraphNode, type Sitedata } from "@/lib"
+import { GraphResponse, isAuthError, type GraphLink, type GraphNode, type Sitedata } from "@/lib"
 import { GraphAnnotation } from "@/components/custom/graph-annotation"
 import { EntitySearch } from "@/components/custom/entity-search"
 import { SourcesPanel } from "@/components/custom/sources-panel"
+import { EntityDetailPanel } from "@/components/custom/entity-detail-panel"
 import { useLanguage } from "@/hooks/language-hook"
 import ForceGraph2D from "react-force-graph-2d"
 import { useAuth } from "@/hooks/authentication-hook"
 import { LinkTooltip, NodeTooltip } from "./tooltips"
-import { smoothLinePoints, wrapInCircle} from "@/lib"
-import { Layers, X } from "lucide-react"
-import { cn } from "@/lib"
+import { smoothLinePoints, layoutNodeLabel, linkLabelAnchor, collideForce} from "@/lib"
+import { Layers, X, TriangleAlert, SquarePen, ChevronUp, RefreshCcw } from "lucide-react"
+import { cn, ApiError } from "@/lib"
 
 import {
     Dialog,
@@ -27,11 +28,12 @@ const LINK_DISTANCE = 90
 const TOOLTIP_WIDTH = 288
 const TOOLTIP_MAX_HEIGHT = 260
 const HIDE_DELAY_MS = 250
-const EXPAND_N = 2
 const FOCUS_NEIGHBOURS = 2
 const FOCUS_TOP_N = 24
 const DEFAULT_TOP_N = 50
 const MAX_PINS = 8
+const PIN_NEIGHBOURS = 2
+const EXPAND_LIMIT = 25
 
 const labelColors: Record<string, string> = {
     PERSON: "#4f8ef7",
@@ -48,6 +50,13 @@ type HoverItem = {
 
 const getNodeColor = (label: string) => labelColors[label] ?? "#999999"
 
+const darken = (hex: string, amount: number) => {
+    const value = hex.replace("#", "")
+    const full = value.length === 3 ? value.split("").map(c => c + c).join("") : value
+    const num = parseInt(full, 16)
+    return `rgb(${Math.round(((num >> 16) & 255) * (1 - amount))}, ${Math.round(((num >> 8) & 255) * (1 - amount))}, ${Math.round((num & 255) * (1 - amount))})`
+}
+
 const endId = (end: string | GraphNode): string =>
     typeof end === "string" ? end : String(end.id)
 
@@ -63,6 +72,7 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
     const { t } = useLanguage()
     const [dims, setDims] = useState({width: 0, height: 0})
     const [rawGraphData, setRawGraphData] = useState<GraphResponse>({"nodes": [], "links": [], "scores": []})
+    const [streamError, setStreamError] = useState<string | null>(null)
     const [expandedIds, setExpandedIds] = useState<string[]>([])
     const containerRef = useRef<HTMLDivElement>(null)
 
@@ -82,11 +92,48 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
     const [focusedSiteIds, setFocusedSiteIds] = useState<string[]>([])
     const [tfidfById, setTfidfById] = useState<Map<string, number>>(new Map())
     const [sourcesOpen, setSourcesOpen] = useState(false)
+    const [annotationOpen, setAnnotationOpen] = useState(false)
     const globalCache = useRef<GraphResponse | null>(null)
+    const [corpusVersion, setCorpusVersion] = useState(0)
 
     const [pinnedIds, setPinnedIds] = useState<string[]>([])
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
     const centerOnRef = useRef<string | null>(null)
+    const lastApplied = useRef("")
+
+    const [detailNodeId, setDetailNodeId] = useState<string | null>(null)
+    const [selectedId, setSelectedId] = useState<string | null>(null)
+
+    const invalidateCorpus = useCallback(() => {
+        globalCache.current = null
+        if(graphType === "global"){
+            setCorpusVersion(v => v + 1)
+        }
+    }, [graphType])
+
+    useEffect(() => {
+        setSelectedId(null)
+    }, [graphType])
+
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if(e.key === "Escape"){
+                setSelectedId(null)
+            }
+        }
+        window.addEventListener("keydown", onKey)
+        return () => window.removeEventListener("keydown", onKey)
+    }, [])
+
+    const handleToggleExpand = useCallback((id: string) => {
+        setExpandedIds(prev =>
+            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        )
+    }, [])
+
+    const expandedSet = useMemo(() => { 
+        return new Set(expandedIds)
+    }, [expandedIds])
 
     useEffect(() => { setPinnedIds([]) }, [graphType])
 
@@ -95,6 +142,22 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
     }, [tfidfById])
 
 
+    const describeError = useCallback((error: unknown, fallback: string) => {
+        if(error instanceof ApiError){
+            if(error.status === 409) return t("graph.error.duplicate")
+            if(error.status === 404) return t("graph.error.gone")
+            if(error.status === 400) return t("graph.error.invalid")
+        }
+        return fallback
+    }, [t])
+
+    const reportError = useCallback((error: unknown, fallback: string) => {
+        if(isAuthError(error)){
+            return
+        }
+        console.error(fallback, error)
+        setStreamError(describeError(error, fallback))
+    }, [describeError])
 
     const isFocusMode = graphType === "global" && focusedIds.size > 0
 
@@ -116,7 +179,7 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
 
 
 
-        if(!dragNode || !graphRef || graphType !== "local" || mergeIds){
+        if(!dragNode || !graphRef || mergeIds){
             return
         }
 
@@ -195,7 +258,6 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
             if(graphType === "local" && (!currentSite || !currentSite.url.trim())) return
 
             setIsLoading(true)
-            setExpandedIds([])
             try {
                 if(graphType === "local"){
                     setRawGraphData(await requestGraph(currentSite!))
@@ -213,7 +275,7 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
             }
         }
         loadGraph()
-    }, [currentSite, graphType, isAuthenticated])
+    }, [currentSite, graphType, isAuthenticated, corpusVersion])
 
     useEffect(() => {
         if(graphType !== "global" || focusedSiteIds.length === 0){
@@ -248,12 +310,13 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
     return m
     }, [rawGraphData.nodes, scoreById])
 
+    /*
     const rankOf = useCallback((id?: string) => {
         if(!id) return 0
         if(isFocusMode && focusedIds.has(id)) return tfidfById.get(id) ?? 0
         return prById.get(id) ?? 0
     }, [isFocusMode, focusedIds, tfidfById, prById])
-
+    */
 
 
 
@@ -277,11 +340,12 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
     }, [rawGraphData.links])
 
 
-    const scaleById = useMemo(() => {
+    /*const scaleById = useMemo(() => {
         const m = new Map<string, number>()
         for(const n of rawGraphData.nodes) if(n.id) m.set(n.id, rankOf(n.id) / 2 + 0.75)
         return m
     }, [rawGraphData.nodes, rankOf])
+    */
 
     const LABEL_RADIUS_MAX = 32, LABEL_RADIUS_MIN = 21
     const labelRadius = Math.min(
@@ -379,12 +443,12 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
 
         for(const id of expandedIds){
             ids.add(id)
-            pull(ids, id, EXPAND_N)
+            pull(ids, id, EXPAND_LIMIT)
         }
 
         for(const id of pinnedIds){
             ids.add(id)
-            pull(ids, id, EXPAND_N)
+            pull(ids, id, PIN_NEIGHBOURS)
         }
 
         return ids
@@ -411,15 +475,75 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
         return { nodes, links: [...byPair.values()] }
     }, [rawGraphData.nodes, rawGraphData.links, visibleIds])
 
+    const selection = useMemo(() => {
+        if(!selectedId){
+            return null
+        }
+
+        const node = graphData.nodes.find(n => String(n.id) === selectedId)
+        if(!node){
+            return null
+        }
+
+        const neighbours = new Set<string>()
+        for(const link of graphData.links){
+            const s = endId(link.source)
+            const t = endId(link.target)
+            if(s === selectedId){
+                neighbours.add(t)
+            } else if(t === selectedId){
+                neighbours.add(s)
+            }
+        }
+
+        const colour = getNodeColor(node.label)
+        return { id: selectedId, neighbours, colour, accent: darken(colour, 0.3)}
+
+    }, [selectedId, graphData])
+
+    const graphSignature = useMemo(() => {
+        const nodes = graphData.nodes.map(n => String(n.id)).join(",")
+        const links = graphData.links.map(l => `${endId(l.source)}>${endId(l.target)}`).join(",")
+        return `${nodes}${links}`
+    }, [graphData])
 
     useEffect(() => {
         const fg = graphRef.current
         if(!fg || !dims.width) return
 
-        fg.d3Force("link")?.distance(LINK_DISTANCE).strength(1)
-        fg.d3Force("charge")?.strength(CHARGE_STRENGTH)
-        fg.d3ReheatSimulation()
+        const key = `${graphSignature}@${dims.width}`
+        if(key === lastApplied.current) return
+        lastApplied.current = key
+
+        const apply = () => {
+            fg.d3Force("link")
+                ?.distance((l: any) => (l.source.__r ?? 20) + (l.target.__r ?? 20) + LINK_DISTANCE)
+                .strength(1)
+            fg.d3Force("charge")?.strength(CHARGE_STRENGTH)
+            fg.d3Force("collide", collideForce((n: any) => n.__r ?? 20, 12, 0.9))
+            fg.d3ReheatSimulation()
+        }
+
+        apply()
+        let inner = 0
+        const outer = requestAnimationFrame(() => { inner = requestAnimationFrame(apply) })
+        return () => { cancelAnimationFrame(outer); cancelAnimationFrame(inner) }
     }, [graphData, dims.width])
+
+    const hiddenById = useMemo(() => {
+        const counts = new Map<string, number>()
+
+        for(const id of visibleIds){
+            let hidden = 0
+            for(const neighbour of neighborsById.get(id) ?? []){
+                if(!visibleIds.has(neighbour)){
+                    hidden++
+                }
+            }
+            counts.set(id, hidden)
+        }
+        return counts
+    }, [visibleIds, neighborsById])
 
     const handleCreateGraph = async () => {
         if(!currentSite || !isAuthenticated){
@@ -429,11 +553,16 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
         setIsLoading(true)
         setExpandedIds([])
         setRawGraphData({"nodes": [], "links": [], "scores": []})
+        setStreamError(null)
 
         try {
             const stream = sendGraphStream(currentSite)
             //let fullContent = ""
             for await (const chunk of stream){
+                if(chunk.error){
+                    setStreamError(chunk.error)
+                    continue
+                }
                 if(chunk.snapshot){
                     setRawGraphData({
                         nodes: chunk.nodes,
@@ -452,8 +581,10 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
 
         } catch(error){
             console.error("Graph Streaming error:", error)
+            reportError(error, t("graph.stream-failed"))
         } finally {
             setIsLoading(false)
+            invalidateCorpus()
         }
     }
 
@@ -491,7 +622,11 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
         }
     }, [anchor, dims])
 
-      useEffect(() => { setPinnedIds([]) }, [graphType])
+      useEffect(() => { 
+        setPinnedIds([])
+        setExpandedIds([])
+        setSelectedId(null)
+      }, [graphType])
 
     const degreeOf = useCallback(
         (id: string) => neighborsById.get(id)?.size ?? 0,
@@ -499,6 +634,7 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
     )
 
     const handlePinEntity = useCallback((node: GraphNode & { id: string }) => {
+        setSelectedId(String(node.id))
         setPinnedIds(prev => prev.includes(node.id) ? prev : [...prev, node.id].slice(-MAX_PINS))
         centerOnRef.current = node.id
     }, [])
@@ -530,20 +666,31 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
 
         raf = requestAnimationFrame(tryCenter)
         return () => cancelAnimationFrame(raf)
-    }, [graphData])    
+    }, [graphData])
+
     const handleAddNode = async (node: GraphNode) => {
 
         if(!currentSite || !isAuthenticated){
             return
         }
         setIsLoading(true)
-        const newNode = await requestAddNode(node, currentSite)
-        setRawGraphData({
-            nodes: [...rawGraphData.nodes, newNode],
-            links: rawGraphData.links,
-            scores: rawGraphData.scores,
-        })
-        setIsLoading(false)
+        setStreamError(null)
+
+        try{
+            const newNode = await requestAddNode(node, currentSite)
+            setRawGraphData(prev => ({
+                nodes: [...prev.nodes, newNode],
+                links: prev.links,
+                scores: prev.scores,
+            }))
+        } catch(error){
+            console.error("Adding node failed:", error)
+            reportError(error, t("graph.error.add-node"))
+        } finally {
+            setIsLoading(false)
+            invalidateCorpus()
+        }
+
     }
 
     const handleDeleteNode = async (node: GraphNode) => {
@@ -551,76 +698,104 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
             return
         }
         setIsLoading(true)
-        const removed = await requestDeleteNode(node, currentSite)
-        const removedLinks = new Set(removed.relations)
+        setStreamError(null)
 
-        setRawGraphData(prev => ({
-            nodes: prev.nodes.filter(n => n.id !== removed.entity),
-            links: prev.links.filter(l => !(l.id && removedLinks.has(l.id))),
-            scores: prev.scores.filter(s => s.id !== removed.entity)
-        }))
-        setExpandedIds(prev => prev.filter(id => id !== removed.entity))
-        setIsLoading(false)
+        try {
+            const removed = await requestDeleteNode(node, currentSite)
+            const removedLinks = new Set(removed.relations)
+            
+            setRawGraphData(prev => ({
+                nodes: prev.nodes.filter(n => n.id !== removed.entity),
+                links: prev.links.filter(l => !(l.id && removedLinks.has(l.id))),
+                scores: prev.scores.filter(s => s.id !== removed.entity)
+            }))
+            setExpandedIds(prev => prev.filter(id => id !== removed.entity))
+        } catch(error){
+            console.error("Deleting node failed:", error)
+            reportError(error, t("graph.error.delete-node"))
+        } finally {
+            setIsLoading(false)
+            invalidateCorpus()
+        }
     }
 
     const handleUpdateNode = async (node: GraphNode) => {
-        if(!currentSite || !isAuthenticated){
+        if(!isAuthenticated){
             return
         }
         setIsLoading(true)
-        const updatedNode = await requestUpdateNode(node, currentSite)
-        if(!updatedNode.id){
-            setIsLoading(false)
-            return
-        }
-        const mergedNode: GraphNode = {...node, ...updatedNode} 
+        setStreamError(null)
 
-        setRawGraphData(prev => ({
-            nodes: prev.nodes.map(n => n.id === updatedNode.id ? mergedNode : n),
-            links: prev.links,
-            scores: prev.scores,
-        }))
-        setExpandedIds(prev => prev.includes(updatedNode.id!) ? prev : [...prev, updatedNode.id])
-        setIsLoading(false)
+        try {
+
+            const updatedNode = await requestUpdateNode(node, currentSite ?? undefined)
+            if(!updatedNode.id){
+                return
+            }
+            const mergedNode: GraphNode = {...node, ...updatedNode} 
+    
+            setRawGraphData(prev => ({
+                nodes: prev.nodes.map(n => n.id === updatedNode.id ? mergedNode : n),
+                links: prev.links,
+                scores: prev.scores,
+            }))
+            setExpandedIds(prev => prev.includes(updatedNode.id!) ? prev : [...prev, updatedNode.id!])
+        } catch(error){
+            console.error("Updating node failed:", error)
+            reportError(error, t("graph.error.updated-node"))
+        } finally {
+            setIsLoading(false)
+            invalidateCorpus()
+        }
     }
 
     const handleMergeNode = async () => {
-        if(!isAuthenticated || !mergeIds || graphType !== "local" || !currentSite){
+        if(!isAuthenticated || !mergeIds){
             setMergeIds(null)
             return
         }
+
         setIsLoading(true)
+        setStreamError(null)
 
-        const { source, target } = mergeIds
-        const result = await requestMergeNodes(source, target, currentSite)
-        const mergedNode = result.merged
-        //const mergedId = mergedNode.id
-        const deletedIds = new Set(result.deleted_relations.map(l => String(l.id)))
-        const updatedById = new Map(result.updated_relations.map(l => [String(l.id), l]))
-        //at this point we removed the source node in backend, updated all sentences and relations of it to target node
-        //remove source node in graph, have its link.sources be target
-        setRawGraphData(prev => ({
-            nodes: prev.nodes
-                .filter(n => n.id !== source.id)
-                .map(n => n.id === target.id ? {...n, ...mergedNode} : n),
-            links: prev.links
-                .filter(l => !(l.id && deletedIds.has(String(l.id))))
-                .map(l => {
-                    const updated = l.id ? updatedById.get(String(l.id)) : undefined
-                    if(updated){
-                        return {...l, ...updated}
-                    }
+        try {
 
-                    return l
-                }),
-            scores: prev.scores.filter(s => s.id !== source.id)
-        }))
-        setExpandedIds(prev => prev.filter(id => id !== source.id))
-
-        dragStartPosRef.current = null
-        setMergeIds(null)
-        setIsLoading(false)
-        setIsDragging(false)
+            const { source, target } = mergeIds
+            const result = await requestMergeNodes(source, target, currentSite ?? undefined)
+            const mergedNode = result.merged
+            //const mergedId = mergedNode.id
+            const deletedIds = new Set(result.deleted_relations.map(l => String(l.id)))
+            const updatedById = new Map(result.updated_relations.map(l => [String(l.id), l]))
+            //at this point we removed the source node in backend, updated all sentences and relations of it to target node
+            //remove source node in graph, have its link.sources be target
+            setRawGraphData(prev => ({
+                nodes: prev.nodes
+                    .filter(n => n.id !== source.id)
+                    .map(n => n.id === target.id ? {...n, ...mergedNode} : n),
+                links: prev.links
+                    .filter(l => !(l.id && deletedIds.has(String(l.id))))
+                    .map(l => {
+                        const updated = l.id ? updatedById.get(String(l.id)) : undefined
+                        if(updated){
+                            return {...l, ...updated}
+                        }
+    
+                        return l
+                    }),
+                scores: prev.scores.filter(s => s.id !== source.id)
+            }))
+            setExpandedIds(prev => prev.filter(id => id !== source.id))
+        } catch(error){
+            reportError(error, t("graph.error.merge"))
+            handleCancelMerge()
+            return
+        } finally {
+            dragStartPosRef.current = null
+            setMergeIds(null)
+            setIsLoading(false)
+            setIsDragging(false)
+            invalidateCorpus()
+        }
     }
 
     const handleCancelMerge = () => {
@@ -646,15 +821,16 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
         try {
             setIsLoading(true)
             const newLink = await requestAddLink(link, currentSite)
-            setRawGraphData({
-                nodes: rawGraphData.nodes,
-                links: [...rawGraphData.links, newLink],
-                scores: rawGraphData.scores,
-        })
+            setRawGraphData(prev => ({
+                nodes: prev.nodes,
+                links: [...prev.links, newLink],
+                scores: prev.scores,
+        }))
         } catch(error){
-
+            reportError(error, t("graph.error.add-link"))
         } finally{
             setIsLoading(false)
+            invalidateCorpus()
         }
     }
 
@@ -683,21 +859,121 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
             }))
 
             } catch(error){
-                console.error("Failed to update link:", error)
+                reportError(error, t("grad.error.update-link"))
             } finally {
                 setIsLoading(false)
+                invalidateCorpus()
             }
     }
-    
 
-    
+    const handleRelayout = useCallback(() => {
+        for(const node of graphData.nodes as any[]){
+            node.fx = undefined
+            node.fy = undefined
+        }
+        lastApplied.current = ""
+        graphRef.current?.d3ReheatSimulation()
+    }, [graphData])
+
     return (
         <div className="relative flex flex-col h-[calc(100vh-4rem)] w-full bg-background">
-            <div className="absolute top-2 right-2 z-10 w-1/2">
-                {graphType === "local" &&
+
+            <div className="flex flex-col gap-2 px-6 pt-2">
+                <div className="flex flex-wrap items-center gap-2">
+                    {graphType === "global" && (
+                        <>
+                            <Button variant="outline" size="sm" onClick={() => setSourcesOpen(true)}>
+                                <Layers className="mr-1.5 size-4" />
+                                {t("sources.title")}
+                                {focusedSiteIds.length > 0 && (
+                                    <span className="ml-1.5 rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">
+                                        {focusedSiteIds.length}
+                                    </span>
+                                )}
+                            </Button>
+
+                            <EntitySearch
+                                nodes={rawGraphData.nodes}
+                                getColor={getNodeColor}
+                                rankOf={(id) => prById.get(id) ?? 0}
+                                degreeOf={degreeOf}
+                                onPick={handlePinEntity}
+                            />
+
+                            {isFocusMode && (
+                                <Button variant="ghost" size="sm" onClick={() => setFocusedSiteIds([])}>
+                                    {t("sources.show-all")}
+                                </Button>
+                            )}
+                        </>
+                    )}
+
+                    <Button
+                        variant={annotationOpen ? "secondary" : "outline"}
+                        size="sm"
+                        className="ml-auto"
+                        onClick={() => setAnnotationOpen(open => !open)}
+                        aria-expanded={annotationOpen}
+                        aria-controls="graph-annotation-panel"
+                    >
+                        {annotationOpen
+                            ? <ChevronUp className="mr-1.5 size-4" />
+                            : <SquarePen className="mr-1.5 size-4" />}
+                        {t(annotationOpen ? "graph.annotation.hide" : "graph.annotation.show")}
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="ml-auto"
+                        onClick={handleRelayout}
+                        title={t("graph.relayout")}
+                        
+                    >
+                        <RefreshCcw className="mr-1.5 size-4" />
+                    </Button>
+                </div>
+
+                {graphType === "global" && pinnedIds.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1">
+                        {pinnedIds.map(id => {
+                            const node = rawGraphData.nodes.find(n => String(n.id) === id)
+                            if(!node) return null
+                            return (
+                                <button
+                                    key={id}
+                                    type="button"
+                                    onClick={() => handleUnpin(id)}
+                                    className="flex items-center gap-1 rounded-full border border-border bg-muted/50 py-0.5 pl-1.5 pr-1 text-xs hover:bg-muted"
+                                >
+                                    <span
+                                        className="size-2 rounded-full"
+                                        style={{ backgroundColor: getNodeColor(node.label) }}
+                                    />
+                                    <span className="max-w-28 truncate">{node.caption}</span>
+                                    <X className="size-3 text-muted-foreground" />
+                                </button>
+                            )
+                        })}
+                        <button
+                            type="button"
+                            onClick={() => setPinnedIds([])}
+                            className="px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                            {t("graph.unpin-all")}
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {annotationOpen && (
+                <div
+                    id="graph-annotation-panel"
+                    className="absolute right-6 top-14 z-20 max-h-[calc(100%-5rem)] w-[min(22rem,calc(100%-3rem))] overflow-y-auto rounded-lg border border-border bg-popover shadow-lg"
+                >
                     <GraphAnnotation
                         className="m-4"
-                        currentSite={currentSite ? currentSite : {url: "no url provided", text: ""}}
+                        currentSite={currentSite ?? { url: "", text: ""}}
+                        graphType={graphType}
                         nodes={graphData.nodes}
                         links={graphData.links}
                         addNode={handleAddNode}
@@ -707,66 +983,6 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
                         updateLink={handleUpdateLink}
                         isLoading={isLoading}>
                     </GraphAnnotation>
-                }
-            </div>
-            {graphType === "global" && (
-                <div className="flex flex-col gap-2 px-6 pt-2">
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setSourcesOpen(true)}>
-                            <Layers className="mr-1.5 size-4" />
-                            {t("sources.title")}
-                            {focusedSiteIds.length > 0 && (
-                                <span className="ml-1.5 rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">
-                                    {focusedSiteIds.length}
-                                </span>
-                            )}
-                        </Button>
-
-                        <EntitySearch
-                            nodes={rawGraphData.nodes}
-                            getColor={getNodeColor}
-                            rankOf={(id) => prById.get(id) ?? 0}
-                            degreeOf={degreeOf}
-                            onPick={handlePinEntity}
-                        />
-
-                        {isFocusMode && (
-                            <Button variant="ghost" size="sm" onClick={() => setFocusedSiteIds([])}>
-                                {t("sources.show-all")}
-                            </Button>
-                        )}
-                    </div>
-
-                    {pinnedIds.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1">
-                            {pinnedIds.map(id => {
-                                const node = rawGraphData.nodes.find(n => String(n.id) === id)
-                                if(!node) return null
-                                return (
-                                    <button
-                                        key={id}
-                                        type="button"
-                                        onClick={() => handleUnpin(id)}
-                                        className="flex items-center gap-1 rounded-full border border-border bg-muted/50 py-0.5 pl-1.5 pr-1 text-xs hover:bg-muted"
-                                    >
-                                        <span
-                                            className="size-2 rounded-full"
-                                            style={{ backgroundColor: getNodeColor(node.label) }}
-                                        />
-                                        <span className="max-w-28 truncate">{node.caption}</span>
-                                        <X className="size-3 text-muted-foreground" />
-                                    </button>
-                                )
-                            })}
-                            <button
-                                type="button"
-                                onClick={() => setPinnedIds([])}
-                                className="px-1.5 text-xs text-muted-foreground hover:text-foreground"
-                            >
-                                {t("graph.unpin-all")}
-                            </button>
-                        </div>
-                    )}
                 </div>
             )}
             <SourcesPanel
@@ -774,6 +990,21 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
                 setOpen={setSourcesOpen}
                 focusedSiteIds={focusedSiteIds}
                 setFocusedSiteIds={setFocusedSiteIds}
+                onDeleted={() => {
+                    setPinnedIds([])
+                    setSelectedId(null)
+                    setDetailNodeId(null)
+                    invalidateCorpus()
+                }}
+            />
+            <EntityDetailPanel
+                entityId={detailNodeId}
+                onClose={() => setDetailNodeId(null)}
+                onOpenEntity={(id) => setDetailNodeId(id)}
+                onToggleExpand={handleToggleExpand}
+                isExpanded={detailNodeId != null && expandedSet.has(detailNodeId)}
+                getColor={getNodeColor}
+
             />
             <div className="flex-1 min-h-0 px-6 py-2 flex">
                 <div 
@@ -790,51 +1021,103 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
                             graphData={graphData}
                             width={dims.width}
                             height={dims.height}
- 
+                            cooldownTicks={300}
+                            onEngineStop={() => {
+                                for(const node of graphData.nodes as any[]){
+                                    if(node.x == null){
+                                        continue
+                                    }
+                                    node.fx = node.x
+                                    node.fy = node.y
+                                }
+                            }}
                             nodeCanvasObject={(node: any, ctx) => {
-                                const s = scaleById.get(String(node.id)) ?? 1
                                 const id = String(node.id)
                                 const pinned = pinnedSet.has(id)
-                                ctx.save()
-                                ctx.translate(node.x, node.y)
-                                ctx.scale(s, s)                       // legacy group transform
-                                const dim = isFocusMode && !focusedIds.has(id) && !pinned
+                                const isSelected = selection?.id === id
+                                const isNeighbour = selection != null && selection.neighbours.has(id)
 
-                                const base = 12 + Math.min((node.website_count ?? 1) - 1, 4)
-                                const radius = base * (pinned ? 1.5 : 1)
+                                const exempt = pinned || (isFocusMode && focusedIds.has(id)) || isSelected || isNeighbour
+
+                                const dim = (isFocusMode || selection != null) && !exempt
+                                const hidden = hiddenById.get(id) ?? 0
+
+                                ctx.font ="500 11px 'Inter', system-ui, sans-serif"
+
+                                // layout is expensive and only depends on the caption — cache it on the node
+                                if(node.__labelKey !== node.caption){
+                                    node.__label = layoutNodeLabel(ctx, node.caption, {
+                                        fontSize: 11,
+                                        minRadius: 14 + Math.min((node.website_count ?? 1) - 1, 4),
+                                        maxLines: 4,
+                                        maxChars: 8,
+                                    })
+                                    node.__labelKey = node.caption
+                                }
+
+                                const label = node.__label
+                                const radius = label.radius * (pinned ? 1.15 : 1)
+                                const colour = dim ? "#999999" : getNodeColor(node.label)
+
+                                if(hidden > 0){
+                                    ctx.beginPath()
+                                    ctx.arc(node.x - radius * 0.19, node.y - radius * 0.13, radius * 0.9, 0, 2 * Math.PI)
+                                    ctx.fillStyle = dim ? "#7d7d7d" : darken(colour, 0.35)
+                                    ctx.fill()
+
+                                    ctx.beginPath()
+                                    ctx.arc(node.x - radius * 0.09, node.y - radius * 0.06, radius * 0.95, 0, 2 * Math.PI)
+                                    ctx.fillStyle = dim ? "#8c8c8c" : darken(colour, 0.18)
+                                    ctx.fill()
+                                }
 
                                 ctx.beginPath()
-                                ctx.arc(0, 0, radius, 0, 2 * Math.PI)
-                                ctx.fillStyle = dim ? "#999999" : getNodeColor(node.label)
+                                ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI)
+                                ctx.fillStyle = colour
                                 ctx.fill()
-                                if(pinned){
-                                    ctx.beginPath()
-                                    ctx.arc(node.x!, node.y!, radius + 3, 0, 2 * Math.PI)
-                                    ctx.strokeStyle = "#111827"
-                                    ctx.lineWidth = 1.5
-                                    ctx.stroke()
-                                }
-                                ctx.strokeStyle = "#FFFFFF"
-                                ctx.lineWidth = 1
+                                ctx.strokeStyle = isSelected ? selection!.accent : isNeighbour ? selection!.accent : pinned ? "#111827" : "#FFFFFF"
+                                ctx.lineWidth = isSelected ? 3 : isNeighbour ? 2 : 1
                                 ctx.stroke()
 
-                                ctx.font = "300 12px 'Roboto Condensed', sans-serif"
-                                ctx.fillStyle = dim ? "#d7d7d7" : "#FFFFFF"
+                                ctx.fillStyle = dim ? "#efefef" : "#FFFFFF"
                                 ctx.textAlign = "center"
                                 ctx.textBaseline = "middle"
-
-                                const lines = wrapInCircle(ctx, node.caption, labelRadius, 14)
-                                lines.forEach((line, i) => {
-                                    if (line) ctx.fillText(line, 0, (i - (lines.length - 1) / 2) * 14)
+                                label.lines.forEach((line: string, i: number) => {
+                                    ctx.fillText(line, node.x, node.y + (i - (label.lines.length - 1) / 2) * label.lineHeight)
                                 })
 
-                                ctx.restore()
-                                node.__r = labelRadius * s
+                                if(hidden > 0){
+                                    const bx = node.x + radius * 0.72
+                                    const by = node.y - radius * 0.72
+                                    const br = Math.min(Math.max(7, radius * 0.3), 12)
+
+                                    ctx.beginPath()
+                                    ctx.arc(bx, by, br, 0, 2 * Math.PI)
+                                    ctx.fillStyle = "#FFFFFF"
+                                    ctx.fill()
+                                    ctx.strokeStyle = dim ? "#b0b0b0" : colour
+                                    ctx.lineWidth = 1.25
+                                    ctx.stroke()
+
+                                    ctx.font = `600 ${Math.round(br * 1.05)}px 'Inter', system-ui, sans-serif`
+                                    ctx.fillStyle = dim ? "#9a9a9a" : "#222222"
+                                    ctx.fillText(hidden > 99 ? "99+" : `+${hidden}`, bx, by)
+                                }
+
+                                node.__r = radius
                             }}
+                            
                             nodePointerAreaPaint={(node: any, color, ctx) => {
-                                ctx.beginPath()
-                                ctx.arc(node.x!, node.y!, node.__r ?? 6, 0, 2 * Math.PI)
+                                const radius = node.__r ?? 6
                                 ctx.fillStyle = color
+
+                                ctx.beginPath()
+                                ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI)
+                                ctx.fill()
+
+                                // the +N badge is part of the node's click target
+                                ctx.beginPath()
+                                ctx.arc(node.x + radius * 0.78, node.y - radius * 0.78, Math.max(6, radius * 0.4) * 1.4, 0, 2 * Math.PI)
                                 ctx.fill()
                             }}
                             linkColor={() => "#e11d48"}
@@ -866,28 +1149,57 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
                             
                             onNodeHover={(node: any) => setHoverNode(node ??  null)}
                             onLinkHover={(link: any) => setHoverLink(link ?? null)}
-                            onNodeClick={(node: any) => {
+                            onNodeClick={(node: any, event: MouseEvent) => {
                                 if(!node?.id) return
-                                setExpandedIds(prev =>
-                                    prev.includes(node.id) ? prev : [...prev, node.id]
-                                )
+
+                                const fg = graphRef.current
+                                const radius = node.__r ?? 14
+                                const br = Math.max(6, radius * 0.4)
+                                const point = fg?.screen2GraphCoords?.(event.offsetX, event.offsetY)
+
+                                const onBadge = point != null && Math.hypot(
+                                    point.x - (node.x + radius * 0.78),
+                                    point.y - (node.y - radius * 0.78),
+                                ) <= br * 1.4
+
+                                if(onBadge){
+                                    setExpandedIds(prev =>
+                                        prev.includes(node.id) ? prev.filter(x => x !== node.id) : [...prev, node.id]
+                                    )
+                                    return
+                                }
+                                setSelectedId(String(node.id))
+                                setDetailNodeId(String(node.id))
                             }}
-                            onBackgroundClick={() => setExpandedIds([])}
-                            linkCanvasObject={(link: any, ctx, globalScale) => {
+                            onBackgroundClick={() => {
+                                setExpandedIds(prev => prev.length ? [] : prev)
+                                setSelectedId(prev => prev === null ? prev : null)
+                            }}
+                            linkCanvasObject={(link: any, ctx) => {
                                 const s = link.source, t = link.target
                                 if (s?.x == null || t?.x == null) return
 
                                 const bothFocused = isFocusMode && focusedIds.has(String(s.id)) && focusedIds.has(String(t.id))
+                                const touchesSelection = selection != null && (String(s.id) === selection.id || String(t.id) === selection.id)
+                                const text = link.relation_type
 
                                 const pts = smoothLinePoints(s, t)
                                 ctx.beginPath()
                                 ctx.moveTo(pts[0].x, pts[0].y)
                                 for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
-                                
-                                if(isFocusMode && bothFocused){
+                                if(selection != null){
+                                    if(touchesSelection){
+                                        ctx.strokeStyle = selection.accent
+                                        ctx.lineWidth = 2
+                                    } else {
+                                        ctx.strokeStyle = "#d7d7d7"
+                                        ctx.lineWidth = 1
+                                    }
+                                    ctx.setLineDash(text ? [] : [2, 3])
+                                } else if(isFocusMode && bothFocused){
                                     ctx.strokeStyle = "#009688"
                                     ctx.lineWidth = 2
-                                    ctx.setLineDash([])
+                                    ctx.setLineDash(text ? [] : [2, 3])
                                 } else if(isFocusMode){
                                     ctx.strokeStyle = "#999999"
                                     ctx.lineWidth = 1
@@ -895,44 +1207,55 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
                                 } else {
                                     ctx.strokeStyle = "#999999"
                                     ctx.lineWidth = 1
-                                    ctx.setLineDash([])
+                                    ctx.setLineDash(text ? [] : [2, 3])
                                 }
 
                                 ctx.stroke()
                                 ctx.setLineDash([])
+                            }}
+                            onRenderFramePost={(ctx: CanvasRenderingContext2D) => {
+                                ctx.save()
+                                ctx.font = "400 9px 'Inter', system-ui, sans-serif"
+                                ctx.textAlign = "center"
+                                ctx.textBaseline = "middle"
+                                ctx.lineJoin = "round"
 
-                                if(isFocusMode && !bothFocused){
-                                    return
+                                const drawn: { x: number, y: number, w: number, h: number }[] = []
+                                const links = [...(graphData.links as any[])].sort((a, b) => {
+                                    const A = selection != null && (String(a.source?.id) === selection.id || String(a.target?.id) === selection.id) ? 1 : 0
+                                    const B = selection != null && (String(b.source?.id) === selection.id || String(b.target?.id) === selection.id) ? 1: 0
+                                    return A - B
+                                })
+                                for(const link of links){
+                                    const s = link.source, t = link.target
+                                    if(s?.x == null || t?.x == null) continue
+
+                                    const text = link.relation_type
+                                    if(!text) continue
+
+                                    const touchesSelection = selection != null && (String(s.id) === selection.id || String(t.id) === selection.id)
+                                    const faded = selection != null ? !touchesSelection : isFocusMode && !(focusedIds.has(String(s.id)) && focusedIds.has(String(t.id)))
+
+                                    const a = linkLabelAnchor(smoothLinePoints(s, t), s, t)
+
+                                    // skip a caption that would sit on top of one already drawn
+                                    const w = ctx.measureText(text).width + 4
+                                    const h = 11
+                                    if(drawn.some(r => Math.abs(r.x - a.x) < (r.w + w) / 2 && Math.abs(r.y - a.y) < (r.h + h) / 2)) continue
+                                    drawn.push({ x: a.x, y: a.y, w, h })
+
+                                    ctx.save()
+                                    ctx.translate(a.x, a.y)
+                                    ctx.rotate(a.angle)
+                                    ctx.lineWidth = 3.5
+                                    ctx.strokeStyle = "#FFFFFF"
+                                    ctx.strokeText(text, 0, 0)
+                                    ctx.fillStyle = faded ? "#d7d7d7": (touchesSelection ? selection!.accent : "#333333")
+                                    ctx.fillText(text, 0, 0)
+                                    ctx.restore()
                                 }
 
-                                const label = link.relation_type
-                                if (!label) return
-                                const m = Math.floor(pts.length / 2)
-                                const a = pts[m - 1], b = pts[m + 1] ?? pts[m]
-                                let angle = Math.atan2(b.y - a.y, b.x - a.x)
-                                if (angle > Math.PI / 2 || angle < -Math.PI / 2) angle += Math.PI  // keep upright
-
-                                ctx.save()
-                                ctx.translate(pts[m].x, pts[m].y)
-                                ctx.rotate(angle)
-                                //ctx.font = `${8.4 / globalScale}px 'Roboto Condensed', sans-serif`
-                                ctx.textAlign = "center"
-                                ctx.textBaseline = "bottom"
-                                ctx.fillStyle = "#555555"
-                                ctx.fillText(label, 0, -4 / globalScale)
                                 ctx.restore()
-                            }}
-                            linkCanvasObjectMode={() => "replace"}
-                            linkPointerAreaPaint={(link: any, color, ctx) => {
-                                const s = link.source, t = link.target
-                                if (s?.x == null || t?.x == null) return
-                                const pts = smoothLinePoints(s, t)
-                                ctx.beginPath()
-                                ctx.moveTo(pts[0].x, pts[0].y)
-                                for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
-                                ctx.strokeStyle = color
-                                ctx.lineWidth = 8          // legacy .click-target stroke-width: 8px
-                                ctx.stroke()
                             }}
                         />
                     )}
@@ -948,7 +1271,14 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
                             onWheel={(e) => e.stopPropagation()}
                         >
                             {hoverItem.label === "Node" && (
-                                <NodeTooltip node={hoverItem.value as GraphNode} deleteNode={handleDeleteNode} />
+                                <NodeTooltip 
+                                    node={hoverItem.value as GraphNode}
+                                    deleteNode={handleDeleteNode}
+                                    canDelete={graphType==="local"}
+                                    expanded={expandedSet.has(String((hoverItem.value as GraphNode).id))}
+                                    hidden={hiddenById.get(String((hoverItem.value as GraphNode).id)) ?? 0}
+                                    onToggleExpand={handleToggleExpand}
+                                />
                             )}
                             {hoverItem.label === "Link" && (
                                 <LinkTooltip link={hoverItem.value as GraphLink} />
@@ -958,9 +1288,28 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
                     </div>
                 </div>
                 {graphType === "local" && (
-                <Button className="m-4 shrink" onClick={handleCreateGraph} disabled={isLoading}>
-                    {t("graph.request-graph")}
-                </Button>
+                    <div className="m-4 flex flex-col gap-2">
+                        {streamError && (
+                            <div
+                                role="alert"
+                                className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200"
+                            >
+                                <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+                                <span className="flex-1">{streamError}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setStreamError(null)}
+                                    className="shrink-0 opacity-60 hover:opacity-100"
+                                    aria-label={t("common.dismiss")}
+                                >
+                                    <X className="size-4" />
+                                </button>
+                            </div>
+                        )}
+                        <Button className="shrink" onClick={handleCreateGraph} disabled={isLoading}>
+                            {t("graph.request-graph")}
+                        </Button>
+                    </div>
                 )}
 
                 <Dialog open={mergeIds != null} onOpenChange={(open) => { if(!open) handleCancelMerge()}}>
@@ -981,8 +1330,6 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
-    
-
             </div>
     )
 }

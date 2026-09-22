@@ -3,11 +3,23 @@
     "version": "3.0.0",
     "name": "Storyfinder",
     "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsl7qpyCM71FIhlBGBdHP8ZK27hfCQUGgguXMlHT+bjUP3ih0xf3VF4NL6AcAFuNdc8vcTbd0AlE/ZvU9GWP0ExIFN6mgFC8DOgDHO+IFtKhNSX064liSlT1MIKXmCtP1d6LZDclMKF/3so5q0EArww/w0iClEBtOCsL0qWBvXxoWukrEQS3VO+THxfZLEHrIqyzd0z/Ep7qyiM24f6HN+F01OlHSaGy6fUNcf+hSGeIqvkwFpE5l0fVQPoeMEuiLDWLd3JRnRl5m0roZf3jLyUSPynqLPfNWrK/i09zr/a37ObS3J+3tfZYcs4kF1bls41MuiLx8Wps7kXScbeEexwIDAQAB",
+    "icons": {
+        "16": "icons/icon16.png",
+        "32": "icons/icon32.png",
+        "48": "icons/icon48.png",
+        "128": "icons/icon128.png"
+    },
     "action": {
         "default_popup": "popup.html"
     },
     "side_panel": {
-        "default_path": "index.html"
+        "default_path": "index.html",
+        "default_icon": {
+            "16": "icons/icon16.png",
+            "32": "icons/icon32.png",
+            "48": "icons/icon48.png",
+            "128": "icons/icon128.png"
+        }
     },
     "permissions": [
         "sidePanel",
@@ -18,7 +30,6 @@
        
     ],
     "host_permissions": [
-        "http://localhost:8000/*",
         "http://*/*",
         "https://*/*"
     ],

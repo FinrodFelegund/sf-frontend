@@ -141,7 +141,6 @@ function pointAt(pts: P[], cum: number[], d: number) {
   }
 }
 
-/** canvas equivalent of <textPath startOffset="50%"> with dy */
 export function drawTextOnPath(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -199,7 +198,7 @@ export function collideForce(radiusOf: (n: any) => number, padding = 4, strength
     return force
 }
 
-/** Hard viewport clamp, centred on the origin. Replaces cola's separation constraints. */
+
 export function boundsForce(getBounds: () => { w: number, h: number, pad: number }) {
     let nodes: any[] = []
     const force = () => {
@@ -217,7 +216,7 @@ export function boundsForce(getBounds: () => { w: number, h: number, pad: number
     return force
 }
 
-/** Inward pull so disconnected components don't wander. */
+
 export function centerPullForce(strength = 0.08) {
     let nodes: any[] = []
     const force = (alpha: number) => {
@@ -228,4 +227,100 @@ export function centerPullForce(strength = 0.08) {
     }
     force.initialize = (n: any[]) => { nodes = n }
     return force
+}
+
+export type NodeLabel = { lines: string[], radius: number, lineHeight: number, fontSize: number }
+
+
+
+export function layoutNodeLabel(
+    ctx: CanvasRenderingContext2D,
+    caption: string,
+    opts: { fontSize?: number, minRadius?: number, maxLines?: number, maxChars?: number, padding?: number } = {},
+): NodeLabel {
+    const fontSize = opts.fontSize ?? 11
+    const lineHeight = fontSize * 1.18
+    const minRadius = opts.minRadius ?? 14
+    const maxLines = opts.maxLines ?? 4
+    const maxChars = opts.maxChars ?? 8
+    const padding = opts.padding ?? 5
+
+    const words = (caption ?? "").split(/\s+/).filter(Boolean)
+    if(words.length === 0){
+        return { lines: [], radius: minRadius, lineHeight, fontSize }
+    }
+
+    const chunks: string[] = []
+    let line = ""
+
+    for(const word of words){
+        let rest = word
+        // a single token longer than the budget is broken across lines
+        while(rest.length > maxChars){
+            if(line){ chunks.push(line); line = "" }
+            chunks.push(rest.slice(0, maxChars))
+            rest = rest.slice(maxChars)
+        }
+        if(!rest) continue
+
+        const candidate = line ? `${line} ${rest}` : rest
+        if(candidate.length > maxChars){
+            if(line) chunks.push(line)
+            line = rest
+        } else {
+            line = candidate
+        }
+    }
+    if(line) chunks.push(line)
+
+    let lines = chunks
+    if(lines.length > maxLines){
+        lines = chunks.slice(0, maxLines)
+        const last = lines[maxLines - 1]
+        lines[maxLines - 1] = (last.length >= maxChars ? last.slice(0, maxChars - 1) : last) + "…"
+    }
+
+    const widest = lines.reduce((max, l) => Math.max(max, ctx.measureText(l).width), 0)
+    const radius = Math.max(
+        minRadius,
+        Math.hypot(widest / 2, (lines.length * lineHeight) / 2) + padding,
+    )
+
+    return { lines, radius, lineHeight, fontSize }
+}
+
+export function linkLabelAnchor(
+    pts: { x: number, y: number }[],
+    s: { x: number, y: number, __r?: number },
+    t: { x: number, y: number, __r?: number },
+): { x: number, y: number, angle: number } {
+    const sr = (s.__r ?? 0) + 3
+    const tr = (t.__r ?? 0) + 3
+
+    const acc: number[] = [0]
+    let total = 0
+    for(let i = 1; i < pts.length; i++){
+        total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y)
+        acc.push(total)
+    }
+
+    let startLen = 0, endLen = total
+    for(let i = 0; i < pts.length; i++){
+        if(Math.hypot(pts[i].x - s.x, pts[i].y - s.y) >= sr){ startLen = acc[i]; break }
+    }
+    for(let i = pts.length - 1; i >= 0; i--){
+        if(Math.hypot(pts[i].x - t.x, pts[i].y - t.y) >= tr){ endLen = acc[i]; break }
+    }
+    const at = endLen > startLen ? (startLen + endLen) / 2 : total / 2
+
+    let seg = 1
+    while(seg < pts.length - 1 && acc[seg] < at) seg++
+    const p0 = pts[seg - 1], p1 = pts[seg]
+    const span = (acc[seg] - acc[seg - 1]) || 1
+    const f = (at - acc[seg - 1]) / span
+
+    let angle = Math.atan2(p1.y - p0.y, p1.x - p0.x)
+    if(angle > Math.PI / 2 || angle < -Math.PI / 2) angle += Math.PI
+
+    return { x: p0.x + (p1.x - p0.x) * f, y: p0.y + (p1.y - p0.y) * f, angle }
 }

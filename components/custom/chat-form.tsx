@@ -1,4 +1,4 @@
-import { Bot, User, Send, Trash } from "lucide-react"
+import { Bot, User, Send, Trash, TriangleAlert } from "lucide-react"
 
 import { MarkdownMessage } from "@/components/custom/markdown-message"
 import { useLanguage } from "@/hooks/language-hook"
@@ -117,7 +117,19 @@ export function Chat({currentSite, initialMessages}: {currentSite: Sitedata, ini
                                     : ''
                             }`}
                         >
-                            {message.content ? (
+                            {message.error ? (
+                                <>
+                                    {message.content && (
+                                        message.role === 'assistant'
+                                            ? <MarkdownMessage content={message.content} />
+                                            : <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                                    )}
+                                    <p role="alert" className="mt-1.5 flex items-center gap-1.5 text-xs text-destructive">
+                                        <TriangleAlert className="size-3.5 shrink-0" />
+                                        {message.error === "connection-lost" ? t("chat.error.connection") : message.error}
+                                    </p>
+                                </>
+                            ) : message.content ? (
                                 <>
                                     {message.role === 'assistant' ? <MarkdownMessage content={message.content} /> : <p className="text-sm whitespace-pre-wrap">{message.content}</p>}
                                     <span className="text-xs opacity-70 mt-1 block">

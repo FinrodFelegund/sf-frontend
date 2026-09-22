@@ -1,19 +1,23 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react"
-import { getUser, getAuthToken, removeAuthToken, User } from "@/lib"
+import { getUser, getAuthToken, removeAuthToken, User, UNAUTHORIZED_EVENT, removeUser } from "@/lib"
 
 type AuthContextType = {
     isAuthenticated: boolean,
+    isReady: boolean,
     user: User | null,
     setIsAuthenticated: (value: boolean) => void,
     setUser: (user: User) => void,
     checkAuth: () => Promise<void>,
+    sessionExpired: boolean,
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({children} : { children: ReactNode}){
     const [isAuthenticated, setIsAuthenticated] = useState(false)
+    const [isReady, setIsReady] = useState(false)
     const [user, setUser] = useState<User | null>(null)
+    const [sessionExpired, setSessionExpired] = useState(false)
 
     const checkAuth = useCallback(async () => {
 
@@ -30,11 +34,14 @@ export function AuthProvider({children} : { children: ReactNode}){
             setUser(user)
             setIsAuthenticated(true)
 
-
         } catch {
-            removeAuthToken()
+            await removeAuthToken()
+            await removeUser()
             setUser(null)
             setIsAuthenticated(false)
+            setSessionExpired(true)
+        } finally {
+            setIsReady(true)
         }
 
     }, [])
@@ -43,9 +50,20 @@ export function AuthProvider({children} : { children: ReactNode}){
         checkAuth()
     }, [checkAuth])
 
+    useEffect(() => {
+        const onUnautherized = () => {
+            setUser(null)
+            setIsAuthenticated(false)
+            setSessionExpired(true)
+            setIsReady(true)
+        }
+        window.addEventListener(UNAUTHORIZED_EVENT, onUnautherized)
+        return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnautherized)
+    }, [])
+
     return (
         <AuthContext.Provider
-            value={{ isAuthenticated, user, setIsAuthenticated, setUser, checkAuth }}
+            value={{ isAuthenticated, isReady, user, setIsAuthenticated, setUser, checkAuth, sessionExpired }}
         >
             {children}
         </AuthContext.Provider>

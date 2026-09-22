@@ -10,8 +10,8 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Check, ExternalLink, RefreshCw } from "lucide-react"
-import { requestWebsites } from "@/lib/graph"
+import { Check, ExternalLink, RefreshCw, Trash2 } from "lucide-react"
+import { requestWebsites, requestDeleteWebsite } from "@/lib/graph"
 import type { GraphWebsite } from "@/lib"
 import { useLanguage } from "@/hooks/language-hook"
 import { cn } from "@/lib/utils"
@@ -32,13 +32,16 @@ type SourcesPanelProps = {
     setOpen: (open: boolean) => void,
     focusedSiteIds: string[],
     setFocusedSiteIds: (ids: string[]) => void,
+    onDeleted: (id: string) => void,
 }
 
-export function SourcesPanel({ open, setOpen, focusedSiteIds, setFocusedSiteIds}: SourcesPanelProps){
+export function SourcesPanel({ open, setOpen, focusedSiteIds, setFocusedSiteIds, onDeleted}: SourcesPanelProps){
     const { t } = useLanguage()
     const [websites, setWebsites] = useState<GraphWebsite[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [query, setQuery] = useState("")
+    const [confirmId, setConfirmId] = useState<string | null>(null)
+    const [deletingId, setDeletingId] = useState<string | null>(null)
 
     const load = useCallback(async () => {
         setIsLoading(true)
@@ -76,6 +79,23 @@ export function SourcesPanel({ open, setOpen, focusedSiteIds, setFocusedSiteIds}
             focused.has(id) ? focusedSiteIds.filter(x => x !== id) : [...focusedSiteIds, id]
         )
     }
+
+    const remove = async (id: string) => {
+        setDeletingId(id)
+        try {
+            await requestDeleteWebsite(id)
+            setWebsites(prev => prev.filter(w => w.id !== id))
+            setFocusedSiteIds(focusedSiteIds.filter(x => x !== id))
+            onDeleted(id)
+        } catch(error){
+            console.error("Request to delete website failed:", error)
+        } finally {
+            setDeletingId(null)
+            setConfirmId(null)
+        }
+    }
+
+
     return (
         <Sheet open={open} onOpenChange={setOpen}>
             <SheetContent side="left" className="w-[88%] sm:max-w-md">
@@ -162,6 +182,7 @@ export function SourcesPanel({ open, setOpen, focusedSiteIds, setFocusedSiteIds}
                                     </button>
 
                                     <a
+                                        
                                         href={site.url}
                                         target="_blank"
                                         rel="noreferrer"
@@ -170,6 +191,36 @@ export function SourcesPanel({ open, setOpen, focusedSiteIds, setFocusedSiteIds}
                                     >
                                         <ExternalLink className="size-3.5" />
                                     </a>
+                                    {confirmId === site.id ? (
+                                            <div className="mt-2 flex shrink-0 items-center gap-1">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-6 px-2 text-xs"
+                                                    disabled={deletingId === site.id}
+                                                    onClick={() => remove(site.id)}
+                                                >
+                                                    {t("sources.delete-confirm")}
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-6 px-2 text-xs"
+                                                    onClick={() => setConfirmId(null)}
+                                                >
+                                                    {t("common.cancel")}
+                                                </Button>
+                                            </div>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => setConfirmId(site.id)}
+                                            className="mt-2.5 shrink-0 p-1 text-muted-foreground hover:text-destructive"
+                                            title={t("sources.delete")}
+                                        >
+                                            <Trash2 className="size-3.5"/>
+                                        </button>
+                                    )}
                                 </li>
                             )
                         })}

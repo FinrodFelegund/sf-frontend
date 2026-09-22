@@ -1,6 +1,7 @@
 import { type GraphLink, type GraphNode, type GraphSentence } from "@/lib"
 import { Button } from "@/components/ui/button"
 import { Trash } from "lucide-react"
+import { useLanguage } from "@/hooks/language-hook"
 
 const HEAD_WORDS = 5
 const TAIL_WORDS = 5
@@ -24,8 +25,19 @@ export function hostname(url: string): string {
 const endCaption = (end: string | GraphNode): string =>
     typeof end === "string" ? end : end.caption
 
-export function NodeTooltip({ node, deleteNode }: { node: GraphNode, deleteNode: (node: GraphNode) => Promise<void>}) {
+type NodeTooltipProps = {
+    node: GraphNode,
+    deleteNode: (node: GraphNode) => Promise<void>,
+    canDelete: boolean,
+    expanded: boolean,
+    hidden: number,
+    onToggleExpand: (id: string) => void,
+}
+
+export function NodeTooltip({ node, deleteNode, canDelete, expanded, hidden, onToggleExpand }: NodeTooltipProps) {
     const websites = node.websites ?? []
+    const { t } = useLanguage()
+    const EXPAND_LIMIT = 25 
 
     return (
         <div className="flex flex-col gap-1.5">
@@ -38,7 +50,19 @@ export function NodeTooltip({ node, deleteNode }: { node: GraphNode, deleteNode:
                         {node.label}
                     </span>
                 </div>
-                {websites.length === 0 && (
+                {node.id && (hidden > 0 || expanded) && (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-1 w-full"
+                        onClick={() => onToggleExpand(node.id!)}
+                    >
+                        {expanded
+                            ? t("graph.collapse")
+                            : `${t("graph.expand")} (${hidden > EXPAND_LIMIT ? `${EXPAND_LIMIT} ${t("graph.of")} ${hidden}` : hidden})`}
+                    </Button>
+                )}
+                {canDelete && websites.length === 0 && (
                     <Button
                         size="sm"
                         variant="outline"

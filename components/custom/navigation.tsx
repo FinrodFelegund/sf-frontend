@@ -11,12 +11,13 @@ import {
 
 import { Button } from "@/components/ui/button"
 
-import { LogOut, Moon, Sun } from "lucide-react"
+import { LogOut, Moon, Sun, Maximize2, Minimize2 } from "lucide-react"
 
 import { useAuth } from "@/hooks/authentication-hook"
 import { useLanguage } from "@/hooks/language-hook"
 import { useTheme } from "@/hooks/theme-hook"
-import { logout } from "@/lib"
+import { logout, isTabView } from "@/lib"
+import { useEffect, useRef } from "react"
 
 interface NavigationProps {
     currentView: string,
@@ -34,6 +35,11 @@ export function Navigation({
     const { isAuthenticated, checkAuth } = useAuth()
     const { t, language, setLanguageState } = useLanguage()
     const { theme, setThemeState } = useTheme()
+    const windowIdRef = useRef<number | null>(null)
+
+    useEffect(() => {
+        chrome.windows.getCurrent().then(w => { windowIdRef.current = w.id ?? null})
+    }, [])
 
     const toggleLanguage = () => {
         setLanguageState(language === "de" ? "en" : "de")
@@ -57,6 +63,28 @@ export function Navigation({
         setCurrentView("graph")
         isLocalGraphSelected ? setCurrentGraph("local") : setCurrentGraph("global")
     }
+
+    const handleOpenInTab = async () => {
+        try {
+            await chrome.runtime.sendMessage({ action: "OPEN_IN_TAB" })
+
+        } catch (error) {
+            console.error("Could not open Storyfinder in a tab:", error)
+            return
+        }
+        window.close()
+    }
+
+    const handleDockToPanel = () => {
+        if(windowIdRef.current == null){
+            return
+        }
+
+        chrome.sidePanel.open({ windowId: windowIdRef.current})
+            .then(() => window.close())
+            .catch(error => console.error("Could not open side panel", error))
+    }
+    
 
     return (
         <header className="flex items-center justify-between p-2 border-b">
@@ -170,6 +198,26 @@ export function Navigation({
                     ) 
                     }
                 </Button>
+                {!isTabView && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        title={t("navigation.open-in-tab")}
+                        onClick={handleOpenInTab}
+                    >
+                        <Maximize2 className="size-4" />
+                    </Button>
+                )}
+                {isTabView && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        title={t("navigation.dock-to-panel")}
+                        onClick={handleDockToPanel}
+                    >
+                        <Minimize2 className="size-4" />
+                    </Button>
+                )}
                 {isAuthenticated && (
                     <Button 
                         variant="default"

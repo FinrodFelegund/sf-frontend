@@ -25,6 +25,7 @@ export type SSEChunkChat = {
     content: string,
     citations?: string[],
     chat_history_id?: number,
+    error?: string,
     done: boolean,
 }
 
@@ -34,6 +35,7 @@ export type Message = {
     content: string,
     timestamp: Date,
     citations?: string[],
+    error?: string,
 }
 
 
@@ -64,11 +66,8 @@ export type RegisterRequest = {
 }
 
 export type UnlockRequest = {
-    unlockcode: Array<number>;
-    user?: {
-        id: number;
-        username: string;
-    }
+    id: string;
+    unlockCode: string;
 }
 
 
@@ -147,7 +146,39 @@ export type SSEChunkGraph = {
     links: GraphLink[],
     scores: GraphScore[],
     snapshot?: boolean,
+    error?: string,
     done: boolean,
+}
+
+
+export type EntityNeighbour = { id: string, caption: string, label: string }
+
+export type EntityRelation = {
+    id: string,
+    relation_type: string | null,
+    neighbour: EntityNeighbour,
+    count: number,
+    score: number,
+}
+
+export type EntitySource = {
+    id: string,
+    url: string,
+    title: string,
+    updated_at: string,
+    occurrences: number,
+    sentence_count: number,
+    sentences: GraphSentence[],
+}
+
+export type EntityDetail = {
+    entity: EntityNeighbour & { 
+        website_count: number,
+        occurrence_count: number,
+        aliases: EntityNeighbour[],
+    },
+    relations: EntityRelation[],
+    sources: EntitySource[],
 }
 
 

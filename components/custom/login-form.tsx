@@ -21,7 +21,7 @@ export function Login({
     const [isLoading, setIsLoading] = useState(false)
 
     const { t } = useLanguage()
-    const { checkAuth } = useAuth()
+    const { checkAuth, sessionExpired } = useAuth()
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -94,6 +94,11 @@ export function Login({
                     </form>
                 </CardContent>
             </Card>
+            {sessionExpired && (
+                <p className="text-sm text-muted-foreground">
+                    {t("auth.session-expired")}
+                </p>
+            )}
         </div>
     )
 }

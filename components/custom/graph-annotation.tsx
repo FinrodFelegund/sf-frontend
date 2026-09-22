@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 import { Button } from "@/components/ui/button"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { GraphLink, GraphNode, Sitedata, cn } from "@/lib"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -502,14 +502,14 @@ export function UpdateLink({ isLoading, links, handleUpdateLink}: UpdateLinkProp
         }
 
         return links
-                .filter((n) => n.relation_type!.trim().toLowerCase().includes(needle))
+                .filter((n) => (n.relation_type ?? "").trim().toLowerCase().includes(needle))
                 .slice(0, max_suggestions)
 
     }, [links, searchedLink])
 
     const select = (link: GraphLink) => {
         setSelected(link)
-        setSearchedLink(link.relation_type!)
+        setSearchedLink(link.relation_type ?? "")
         setIsOpen(false)
     }
 
@@ -598,6 +598,7 @@ export function UpdateLink({ isLoading, links, handleUpdateLink}: UpdateLinkProp
 interface GraphAnnotationProps {
     className: string,
     currentSite: Sitedata,
+    graphType: string,
     nodes: GraphNode[],
     links: GraphLink[],
     addNode: (node: GraphNode) => {},
@@ -608,67 +609,80 @@ interface GraphAnnotationProps {
     isLoading: boolean
 }
 
-export function GraphAnnotation({ className, currentSite, nodes, links, addNode, deleteNode, updateNode, addLink, updateLink, isLoading }: GraphAnnotationProps){
-    const [currentView, setCurrentView] = useState("nodeAdd")
+export function GraphAnnotation({ className, currentSite, graphType, nodes, links, addNode, deleteNode, updateNode, addLink, updateLink, isLoading }: GraphAnnotationProps){
+    const [currentView, setCurrentView] = useState("nodeUpdate")
+    const canEditEvidence = graphType === "local"
+    const { t } = useLanguage()
     
+    useEffect(() => {
+        if(!canEditEvidence && currentView !== "nodeUpdate"){
+            setCurrentView("nodeUpdate")
+        }
+    }, [canEditEvidence, currentView])
 
     return (
         currentSite.url && (
-            <div className={cn(className, "flex", "flex-row", "gap-6", "items-start")}>
-                {/* Left: the form menu */}
-                <Card className="flex-1">
-                    <CardContent>
-                        {currentView === "nodeAdd" && (
+            <div className={cn(className, "flex w-full min-w-0 flex-col gap-3")}>
+
+                <div className="flex flex-wrap items-center gap-2">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm">{t("annotation.nodes")}</Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                            {canEditEvidence && (
+                                <DropdownMenuItem onClick={() => setCurrentView("nodeAdd")}>
+                                    {t("annotation.add")}
+                                </DropdownMenuItem>
+                            )}
+                            {canEditEvidence && (
+                                <DropdownMenuItem onClick={() => setCurrentView("nodeDelete")}>
+                                    {t("annotation.delete")}
+                                </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => setCurrentView("nodeUpdate")}>
+                                {t("annotation.update")}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {canEditEvidence && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm">{t("annotation.links")}</Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                                <DropdownMenuItem onClick={() => setCurrentView("linkAdd")}>
+                                    {t("annotation.add")}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setCurrentView("linkUpdate")}>
+                                    {t("annotation.update")}
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
+                </div>
+
+                <Card className="w-full min-w-0 gap-0 py-3">
+                    <CardContent className="min-w-0 px-3 [&_label]:text-xs [&_input]:h-8 [&_input]:text-sm [&_button]:h-8 [&_button]:text-sm [&_[role=combobox]]:h-8">
+                        {canEditEvidence && currentView === "nodeAdd" && (
                             <AddNode isLoading={isLoading} currentSite={currentSite} handleAddNode={addNode}></AddNode>
                         )}
-                        {currentView === "nodeDelete" && (
+                        {canEditEvidence && currentView === "nodeDelete" && (
                             <DeleteNode isLoading={isLoading} nodes={nodes} handleDeleteNode={deleteNode}></DeleteNode>
                         )}
                         {currentView === "nodeUpdate" && (
                             <UpdateNode isLoading={isLoading} nodes={nodes} handleUpdateNode={updateNode}></UpdateNode>
                         )}
-                        {currentView === "linkAdd" && (
+                        {canEditEvidence && currentView === "linkAdd" && (
                             <AddLink isLoading={isLoading} nodes={nodes} handleAddLink={addLink}></AddLink>
                         )}
-                        {currentView === "linkUpdate" && (
+                        {canEditEvidence && currentView === "linkUpdate" && (
                             <UpdateLink isLoading={isLoading} links={links} handleUpdateLink={updateLink}></UpdateLink>
                         )}
                     </CardContent>
                 </Card>
-
-                {/* Right: the toggle buttons */}
-                <div className="flex flex-col gap-2">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline">Nodes</Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                                <DropdownMenuItem onClick={() => setCurrentView("nodeAdd")}>
-                                    Add
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setCurrentView("nodeDelete")}>
-                                    Delete
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setCurrentView("nodeUpdate")}>
-                                    Update
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline">Links</Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                                <DropdownMenuItem onClick={() => setCurrentView("linkAdd")}>
-                                    Add
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setCurrentView("linkUpdate")}>
-                                    Update
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                </div>
-            </div>    
+            </div>
         )
     )
 }

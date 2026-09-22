@@ -1,10 +1,13 @@
-import { API_BASE_URL, ensureCSRFToken, getAuthHeaders } from "./client";
+import { API_BASE_URL, assertAuthorized, ensureCSRFToken, getAuthHeaders } from "./client";
 import { ChatMessage, type SSEChunkChat } from "./types";
 
 
 export async function* fetchSSE(url: string, options: RequestInit): AsyncGenerator<SSEChunkChat>{
     
     const response = await fetch(url, options)
+
+    await assertAuthorized(response)
+
     if(!response.ok){
         throw new Error(response.statusText)
     }
@@ -62,8 +65,8 @@ export async function* fetchSSE(url: string, options: RequestInit): AsyncGenerat
             try {
                 const parsed = JSON.parse(parsedData);
 
-                if (parsed.error) {
-                    throw new Error(`Backend error: ${parsed.error}`);
+                if (typeof parsed.error === "string") {
+                    return { content: "", error: parsed.error, chat_history_id: chatHistoryId, done: false}
                 }
 
                 if (parsed.chat_history_id) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { ChatMessage, fetchChatHistoryByUrl, sendChatStream, type Message, type Sitedata } from "@/lib"
+import { ChatMessage, fetchChatHistoryByUrl, sendChatStream, ApiError, type Message, type Sitedata } from "@/lib"
 
 
 interface chatSessionProps {
@@ -19,15 +19,21 @@ export function useChatSession({
             if(!currentSite.url){
                 return
             }
-            const history = await fetchChatHistoryByUrl(currentSite.url)
-            const chatMessages = history.messages.map((m: Message, i: number) => ({
-                chat_message_id: `history-${i}`,
-                role: m.role,
-                content: m.content,
-                citations: m.citations ?? [],
-                timestamp: new Date(),
-            }))
-            setMessages([...initialMessages, ...chatMessages])
+            try {
+                const history = await fetchChatHistoryByUrl(currentSite.url)
+                const chatMessages = history.messages.map((m: Message, i: number) => ({
+                    chat_message_id: `history-${i}`,
+                    role: m.role,
+                    content: m.content,
+                    citations: m.citations ?? [],
+                    timestamp: new Date(),
+                }))
+                setMessages([...initialMessages, ...chatMessages])
+            } catch(error){
+                if(!(error instanceof ApiError && error.status === 401)){
+                    console.error("Failed to load chat history:", error)
+                }
+            }
         }
 
         loadChatHistory()
@@ -69,6 +75,14 @@ export function useChatSession({
 
             let fullContent = ""
             for await (const chunk of stream){
+                if(chunk.error){
+                    setMessages(prev => prev.map(msg =>
+                        msg.chat_message_id === assistantPlaceholder.chat_message_id
+                            ? { ...msg, error: chunk.error }
+                            : msg
+                    ))
+                    continue
+                }
                 if(chunk.content){
                     fullContent += chunk.content
                     setMessages(prev => prev.map(msg => 
@@ -90,7 +104,12 @@ export function useChatSession({
             }
         } catch(error){
             console.error("Streaming error:", error)
-            setMessages(prev => prev.filter(msg => msg.chat_message_id !== assistantPlaceholder.chat_message_id))
+            setMessages(prev => prev.flatMap(msg => {
+                if(msg.chat_message_id !== assistantPlaceholder.chat_message_id){
+                    return [msg]
+                }
+                return msg.content ? [{ ...msg, error: "connection-lost" }] : []
+            }))
         } finally {
             setIsLoading(false)
         }

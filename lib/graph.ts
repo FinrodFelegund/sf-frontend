@@ -1,8 +1,11 @@
-import { API_BASE_URL, ensureCSRFToken, getAuthHeaders } from "./client"
-import { Sitedata, GraphNode, GraphLink, SSEChunkGraph, GraphResponse, GraphWebsite, GraphFocus } from "./types"
+import { API_BASE_URL, ensureCSRFToken, getAuthHeaders, apiJson, assertAuthorized } from "./client"
+import { Sitedata, GraphNode, GraphLink, SSEChunkGraph, GraphResponse, GraphWebsite, GraphFocus, EntityDetail } from "./types"
 
 export async function* fetchSEE(url: string, options: RequestInit){
     const response = await fetch(url, options)
+
+    await assertAuthorized(response)
+
     if(!response.ok){
         throw new Error(response.statusText)
     }
@@ -60,8 +63,8 @@ export async function* fetchSEE(url: string, options: RequestInit){
             try {
                 const parsed = JSON.parse(parsedData);
 
-                if (parsed.error) {
-                    throw new Error(`Backend error: ${parsed.error}`);
+                if(typeof parsed.error === "string"){
+                    return { nodes: [], links: [], scores: [], error: parsed.error, done: false}
                 }
 
                 if(parsed.type === "graph"){
@@ -159,203 +162,83 @@ export async function* sendGraphStream(sitedata: Sitedata): AsyncGenerator<SSECh
 }
 
 export async function requestGraph(sitedata: Sitedata){
-    await ensureCSRFToken()
-    const headers = await getAuthHeaders()
     const params = new URLSearchParams({url: sitedata.url, text: ""})
+    const response =  await apiJson<Partial<GraphResponse>>(`/api/v1/graph?${params.toString()}`, { method: "GET" })
 
-    try {
-        const response = await fetch (`${API_BASE_URL}/api/v1/graph?${params.toString()}`, {
-        method: 'GET',
-        headers: headers,
-        credentials: 'include',
-        })
-
-        if(!response.ok) {
-            throw new Error(response.statusText)
-        }
-
-        const data =  await response.json() as Partial<GraphResponse>
-
-        return {
-            nodes: data.nodes ?? [],
-            links: data.links ?? [],
-            scores: data.scores ?? [],
-        }
-
-    } catch(error){
-        throw new Error("Requesting graph failed:" + error)
+    return {
+        nodes: response.nodes ?? [],
+        links: response.links ?? [],
+        scores: response.scores ?? [],
     }
 }
 
 
 export async function requestAddNode(node: GraphNode, website: Sitedata){
-    await ensureCSRFToken()
-    const headers = await getAuthHeaders()
+
     const params = new URLSearchParams({ url: website.url })
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/v1/web/entities/?${params.toString()}`, {
-            method: "POST",
-            headers: headers,
-            credentials: "include",
-            body: JSON.stringify({node: node, website: website})
-        })
-    
-        return await response.json() as GraphNode
-        
-    } catch(error){
-        throw new Error("Adding node Request failed:" + error)
-    }
+
+    return await apiJson<GraphNode>(`/api/v1/web/entities/?${params.toString()}`, {
+        method: "POST",
+        body: JSON.stringify({node: node, website: website})
+    })
 }
 
 export async function requestDeleteNode(node: GraphNode, website: Sitedata) {
-    await ensureCSRFToken()
-    const headers = await getAuthHeaders()
     const params = new URLSearchParams({ url: website.url })
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/v1/web/entities/${node.id}/?${params.toString()}`, {
-            method: "DELETE",
-            headers: headers,
-            credentials: "include",
-        })
-
-        if(!response.ok){
-            throw new Error(response.statusText)
-        }
-
-        return await response.json() as { entity: string, relations: string[]}
-
-    } catch(error){
-        throw new Error("Requesting deletion of node failed:" + error)
-    }
+    return await apiJson<{ entity: string, relations: string[]}>(`/api/v1/web/entities/${node.id}/?${params.toString()}`, { method: "DELETE" })
 }
 
-export async function requestUpdateNode(node: GraphNode, website: Sitedata) {
-    await ensureCSRFToken()
-    const headers = await getAuthHeaders()
-    const params = new URLSearchParams({ url: website.url })
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/v1/web/entities/${node.id}/?${params.toString()}`, {
-            method: "PATCH",
-            headers: headers,
-            credentials: "include",
-            body: JSON.stringify({entity_name: node.caption, entity_type: node.label})
-        })
+export async function requestUpdateNode(node: GraphNode, website?: Sitedata) {
+    const params = new URLSearchParams()
+    if(website?.url) params.set("url", website.url)
 
-        if(!response.ok){
-            throw new Error(response.statusText)
-        }
-
-        const data = await response.json() as GraphNode
-        return {...data, id: String(data.id)}
-    } catch(error){
-        throw new Error("Requesting updating of node failed:" + error)
-    }
+    return await apiJson<GraphNode>(
+        `/api/v1/web/entities/${node.id}/?${params.toString()}`,
+        { method: "PATCH", body: JSON.stringify({ caption: node.caption, label: node.label }) }
+    )
 }
 
-export async function requestMergeNodes(sourceNode: GraphNode, targetNode: GraphNode, website: Sitedata){
-    await ensureCSRFToken()
-    const headers = await getAuthHeaders()
-    const params = new URLSearchParams({ url: website.url })
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/v1/web/entities/merge/?${params.toString()}`, {
-            method: "POST",
-            headers: headers,
-            credentials: "include",
-            body: JSON.stringify({"source_id": sourceNode.id, "target_id": targetNode.id})
-        })
+export async function requestMergeNodes(
+    sourceNode: GraphNode, targetNode: GraphNode, website?: Sitedata,
+){
+    const params = new URLSearchParams()
+    if(website?.url) params.set("url", website.url)
 
-        if(!response.ok){
-            throw new Error(response.statusText)
-        }
-
-        return await response.json() as { merged: GraphNode, deleted_relations: GraphLink[], updated_relations: GraphLink[]}
-    } catch(error){
-        throw new Error("Requesting merging of nodes failed:" + error)
-    }
+    return await apiJson<{ merged: GraphNode, deleted_relations: GraphLink[], updated_relations: GraphLink[] }>(
+        `/api/v1/web/entities/merge/?${params.toString()}`,
+        { method: "POST", body: JSON.stringify({ source_id: sourceNode.id, target_id: targetNode.id }) }
+    )
 }
 
 export async function requestAddLink(link: GraphLink, website: Sitedata){
-    await ensureCSRFToken()
-    const headers = await getAuthHeaders()
     const params = new URLSearchParams({ url: website.url })
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/v1/web/relations/?${params.toString()}`, {
-            method: 'POST',
-            headers: headers,
-            credentials: 'include',
-            body: JSON.stringify(link)
-        })
-
-        if(!response.ok){
-            throw new Error(response.statusText)
-        }
-    
-        return await response.json() as GraphLink
-    
-    } catch(error){
-        throw new Error("Adding Link Request failed:" + error)
-    }
+    return apiJson<GraphLink>(`/api/v1/web/relations/?${params.toString()}`, { method: "POST", body: JSON.stringify(link) })
 }
 
 export async function requestUpdateLink(link: GraphLink, website: Sitedata){
-    await ensureCSRFToken()
-    const headers = await getAuthHeaders()
     const params = new URLSearchParams({ url: website.url })
-    try {
-        console.log(link)
-        const response = await fetch(`${API_BASE_URL}/api/v1/web/relations/${link.id}/?${params.toString()}`, {
-            method: 'PATCH',
-            headers: headers,
-            credentials: 'include',
-            body: JSON.stringify(link)
-        })
-
-        if(!response.ok){
-            throw new Error(response.statusText)
-        }
-
-        return await response.json() as {'updated_relations': GraphLink[], 'deleted_relations': GraphLink[]}
-    } catch(error){
-        throw new Error("Updating Link Request failed:" + error)
-    }
+    return await apiJson<{"updated_relations": GraphLink[], "deleted_relations": GraphLink[]}>(`/api/v1/web/relations/${link.id}/?${params.toString()}`, { method: "PATCH" })
 }
 
 export async function requestWebsites(){
-    await ensureCSRFToken()
-    const headers = await getAuthHeaders()
+    return await apiJson<GraphWebsite[]>(`/api/v1/web/websites/`, { method: 'GET' })
+}
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/web/websites/`, {
-        method: 'GET',
-        headers: headers,
-        credentials: 'include',
-    })
-
-    if(!response.ok){
-        throw new Error(response.statusText)
-    }
-
-    return await response.json() as GraphWebsite[]
+export async function requestDeleteWebsite(websiteId: string){
+    return await apiJson<{website: string, entities_removed:number, relations_removed: number}>(`/api/v1/web/websites/${websiteId}`, { method: "DELETE" })
 }
 
 export async function requestFocus(websiteIds: string[]){
     if(websiteIds.length === 0){
         return { website_ids: [], tfidf: {} }
     }
-
-    await ensureCSRFToken()
-    const headers = await getAuthHeaders()
     const params = new URLSearchParams( { focus: websiteIds.join(",") })
+    const data = await apiJson<Partial<GraphFocus>>(`/api/v1/graph/focus?${params.toString()}`, { method: "GET" })
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/graph/focus?${params.toString()}`, {
-        method: 'GET',
-        headers: headers,
-        credentials: 'include',
-    })
-
-    if(!response.ok){
-        throw new Error(response.statusText)
-    }
-
-    const data = await response.json() as Partial<GraphFocus>
     return { website_ids: data.website_ids ?? [], tfidf: data.tfidf ?? {} }
+}
+
+
+export async function requestEntityDetail(entityId: string){
+    return await apiJson<EntityDetail>(`/api/v1/web/entities/${entityId}/detail/`)
 }

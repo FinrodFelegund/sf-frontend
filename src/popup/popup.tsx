@@ -3,12 +3,13 @@ import { Button } from "@/components/ui/button"
 export function Popup(){
     const handleOpenSidePanel= async () => {
         try {
-            const currentWindow = await chrome.windows.getCurrent()
-            if(currentWindow.id){
-                await chrome.sidePanel.open({ windowId: currentWindow.id})
-            }
-
-            window.close()
+  
+                const currentWindow = await chrome.windows.getCurrent()
+                if(currentWindow.id){
+                    await chrome.sidePanel.open({ windowId: currentWindow.id})
+                }
+    
+                window.close()
 
         } catch(error) {
             console.error("Error opening side panel: ", error)
@@ -22,7 +23,7 @@ export function Popup(){
             </p>
 
             <Button 
-                onClick={handleOpenSidePanel}
+                onClick={() => handleOpenSidePanel()}
                 className="w-full"
             >
                 Open Side Panel

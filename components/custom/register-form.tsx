@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldGroup, FieldLabel} from "@/components/ui/field"
@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { GraduationCap } from "lucide-react"
 import { useLanguage } from "@/hooks/language-hook"
-import { register } from "@/lib"
+import { register, unlock, UnlockRequest } from "@/lib"
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
+import { REGEXP_ONLY_DIGITS } from "input-otp"
 
 interface RegisterProps {
     setCurrentView: (view: string) => void
@@ -24,9 +26,19 @@ export function Register({
     const [error, setError] = useState("")
     const [isLoading, setIsLoading] = useState(false)
     const [showUnlockModal, setShowUnlockModal] = useState(false)
-    const [unlockCode, setUnlockCode] = useState<Array<number>>([])
+    const [registerResponse, setRegisterResponse] = useState<UnlockRequest>({"id": "", "unlockCode": ""})
+    const [unlockCode, setUnlockCode] = useState("")
     
     const { t } = useLanguage()
+    const [modelDisplay, setModelDisplay] = useState(t("register.unlock.description"))
+
+    useEffect(() => {
+        setUserName("tester")
+        setFirstName("tester")
+        setLastName("tester")
+        setEmail("tester@gmail.com")
+        setPassword("12345678")
+    }, [])
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -41,16 +53,24 @@ export function Register({
                 password: password,
                 email: email
             })
-            setUnlockCode(registerResponse)
+            setRegisterResponse(registerResponse)
             setShowUnlockModal(true)
         } catch(error){
             console.error("Could not register user: ", error)
+        } finally {
+            setIsLoading(false)
         }
     }
 
-    const handleConfirmRegister = () => {
-        unlockCode
-        setCurrentView
+    const handleConfirmRegister = async () => {
+        if(unlockCode === registerResponse.unlockCode){
+            await unlock(registerResponse.id)
+            setShowUnlockModal(false)
+            setCurrentView("login")
+
+        } else {
+            setModelDisplay(t("register.unlock.descriptio.failure"))
+        }
     }
 
 
@@ -149,16 +169,36 @@ export function Register({
             <Dialog open={showUnlockModal} onOpenChange={setShowUnlockModal}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>{t("chat.delete.title")}</DialogTitle>
+                        <DialogTitle>{t("register.unlock.title")}</DialogTitle>
                         <DialogDescription>
-                            {t("chat.delete.dicription")}
+                            {modelDisplay}
                         </DialogDescription>
                     </DialogHeader>
+                    <div className="flex justify-center py-4">
+                        <InputOTP
+                            maxLength={6}
+                            pattern={REGEXP_ONLY_DIGITS}
+                            value={unlockCode}
+                            onChange={setUnlockCode}
+                        >
+                            <InputOTPGroup>
+                                <InputOTPSlot index={0} />
+                                <InputOTPSlot index={1} />
+                                <InputOTPSlot index={2} />
+                                <InputOTPSlot index={3} />
+                                <InputOTPSlot index={4} />
+                                <InputOTPSlot index={5} />
+                            </InputOTPGroup>
+                        </InputOTP>
+                    </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setShowUnlockModal(false)}>
                             {t("register.unlock.cancel")}
                         </Button>
-                        <Button onClick={() => { handleConfirmRegister()}}>
+                        <Button
+                            disabled={unlockCode.length !== 6}
+                            onClick={() => handleConfirmRegister()}
+                        >
                             {t("register.unlock.confirm")}
                         </Button>
                     </DialogFooter>
