@@ -160,7 +160,7 @@ export function Chat({currentSite, initialMessages}: {currentSite: Sitedata, ini
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyUp={handleKeyPress}
-                        placeholder={t("chat.placholder")}
+                        placeholder={t("chat.placeholder")}
                         disabled={isLoading}
                         className="flex-1"
                     />
@@ -178,7 +178,7 @@ export function Chat({currentSite, initialMessages}: {currentSite: Sitedata, ini
                     <DialogHeader>
                         <DialogTitle>{t("chat.delete.title")}</DialogTitle>
                         <DialogDescription>
-                            {t("chat.delete.dicription")}
+                            {t("chat.delete.description")}
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>

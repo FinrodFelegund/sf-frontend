@@ -859,7 +859,7 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
             }))
 
             } catch(error){
-                reportError(error, t("grad.error.update-link"))
+                reportError(error, t("graph.error.update-link"))
             } finally {
                 setIsLoading(false)
                 invalidateCorpus()
@@ -907,30 +907,29 @@ export function Graph({currentSite, graphType}: {currentSite: Sitedata | null, g
                             )}
                         </>
                     )}
-
-                    <Button
-                        variant={annotationOpen ? "secondary" : "outline"}
-                        size="sm"
-                        className="ml-auto"
-                        onClick={() => setAnnotationOpen(open => !open)}
-                        aria-expanded={annotationOpen}
-                        aria-controls="graph-annotation-panel"
-                    >
-                        {annotationOpen
-                            ? <ChevronUp className="mr-1.5 size-4" />
-                            : <SquarePen className="mr-1.5 size-4" />}
-                        {t(annotationOpen ? "graph.annotation.hide" : "graph.annotation.show")}
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="ml-auto"
-                        onClick={handleRelayout}
-                        title={t("graph.relayout")}
-                        
-                    >
-                        <RefreshCcw className="mr-1.5 size-4" />
-                    </Button>
+                    <div className="ml-auto flex items-center gap-2">
+                        <Button
+                            variant={annotationOpen ? "secondary" : "outline"}
+                            size="sm"
+                            onClick={() => setAnnotationOpen(open => !open)}
+                            aria-expanded={annotationOpen}
+                            aria-controls="graph-annotation-panel"
+                        >
+                            {annotationOpen
+                                ? <ChevronUp className="mr-1.5 size-4" />
+                                : <SquarePen className="mr-1.5 size-4" />}
+                            {t(annotationOpen ? "graph.annotation.hide" : "graph.annotation.show")}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleRelayout}
+                            title={t("graph.relayout")}
+                            
+                        >
+                            <RefreshCcw className="size-4" />
+                        </Button>
+                    </div>
                 </div>
 
                 {graphType === "global" && pinnedIds.length > 0 && (

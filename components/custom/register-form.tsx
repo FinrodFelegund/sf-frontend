@@ -69,7 +69,7 @@ export function Register({
             setCurrentView("login")
 
         } else {
-            setModelDisplay(t("register.unlock.descriptio.failure"))
+            setModelDisplay(t("register.unlock.description.failure"))
         }
     }
 

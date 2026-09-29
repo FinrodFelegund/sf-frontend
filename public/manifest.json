@@ -12,6 +12,11 @@
     "action": {
         "default_popup": "popup.html"
     },
+    "options_ui": {
+        "page": "options.html",
+        "open_in_tab": false
+    },
+
     "side_panel": {
         "default_path": "index.html",
         "default_icon": {

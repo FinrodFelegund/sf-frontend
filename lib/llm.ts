@@ -1,4 +1,4 @@
-import { API_BASE_URL, assertAuthorized, ensureCSRFToken, getAuthHeaders } from "./client";
+import { getAPIBaseUrl, assertAuthorized, ensureCSRFToken, getAuthHeaders } from "./client";
 import { ChatMessage, type SSEChunkChat } from "./types";
 
 
@@ -140,10 +140,11 @@ export async function* fetchSSE(url: string, options: RequestInit): AsyncGenerat
 
 
 export async function* sendChatStream(message: ChatMessage): AsyncGenerator<SSEChunkChat>{
+    const api_base_url = await getAPIBaseUrl()
     await ensureCSRFToken()
     const headers = await getAuthHeaders()
 
-    yield* fetchSSE(`${API_BASE_URL}/api/v1/chat/stream/`, {
+    yield* fetchSSE(`${api_base_url}/api/v1/chat/stream/`, {
         method: 'POST',
         headers: headers,
         credentials: 'include',
