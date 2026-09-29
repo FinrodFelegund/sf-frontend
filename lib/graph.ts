@@ -1,4 +1,4 @@
-import { API_BASE_URL, ensureCSRFToken, getAuthHeaders, apiJson, assertAuthorized } from "./client"
+import { getAPIBaseUrl, ensureCSRFToken, getAuthHeaders, apiJson, assertAuthorized } from "./client"
 import { Sitedata, GraphNode, GraphLink, SSEChunkGraph, GraphResponse, GraphWebsite, GraphFocus, EntityDetail } from "./types"
 
 export async function* fetchSEE(url: string, options: RequestInit){
@@ -149,10 +149,11 @@ export async function* fetchSEE(url: string, options: RequestInit){
 }
 
 export async function* sendGraphStream(sitedata: Sitedata): AsyncGenerator<SSEChunkGraph>{
+    const api_base_url = await getAPIBaseUrl()
     await ensureCSRFToken()
     const headers = await getAuthHeaders()
 
-    yield* fetchSEE(`${API_BASE_URL}/api/v1/graph`, {
+    yield* fetchSEE(`${api_base_url}/api/v1/graph`, {
         method: 'POST',
         headers: headers,
         credentials: 'include',

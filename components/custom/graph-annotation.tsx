@@ -29,16 +29,16 @@ import { Plus, Trash, Upload } from "lucide-react"
 import { useLanguage } from "@/hooks/language-hook"
 
 type NodeLabel = {
-    readable: string,
+    key: string,
     spacy: string,
 }
 
 const NodeTypes: NodeLabel[] = [
-    {readable: "Person", spacy:"PERSON"},
-    {readable: "Organisation", spacy:"ORG"},
-    {readable: "Geopolitical Entities", spacy:"GPE"},
-    {readable: "Location", spacy:"LOC"},
-    {readable: "Nationalities or political or religious groups", spacy:"NORP"},
+    {key: "entity.person", spacy:"PERSON"},
+    {key: "entity.org", spacy:"ORG"},
+    {key: "entity.gpe", spacy:"GPE"},
+    {key: "entity.loc", spacy:"LOC"},
+    {key: "entity.norp", spacy:"NORP"},
 ]
 
 interface AddNodeProps {
@@ -48,6 +48,7 @@ interface AddNodeProps {
 }
 
 export function AddNode({ isLoading, handleAddNode}: AddNodeProps){
+    const { t } = useLanguage()
     const [NodeName, setNodeName] = useState("")
     const [NodeType, setNodeType] = useState("")
 
@@ -66,28 +67,28 @@ export function AddNode({ isLoading, handleAddNode}: AddNodeProps){
     return (
         <div className="flex flex-col gap-4">
             <div className="grid gap-2">
-                <Label htmlFor="caption">Caption</Label>
+                <Label htmlFor="caption">{t("annotation.caption")}</Label>
                 <Input
                     id="caption"
                     type="text"
                     onChange={(e) => setNodeName(e.target.value)}
-                    placeholder="Node Name"
+                    placeholder={t("annotation.node")}
                     required
                 />
             </div>
             <div className="grid gap-2">
-                <Label htmlFor="NodeType">Node Type</Label>
+                <Label htmlFor="NodeType">{t("annotation.newlabel")}</Label>
                 <Combobox
                     items={NodeTypes}
-                    itemToStringLabel={(enttype: NodeLabel) => enttype?.readable ?? ""}
-                    onValueChange={(enttype: NodeLabel | null) => setNodeType(enttype?.spacy ?? "")}
+                    itemToStringLabel={(enttype: NodeLabel) => enttype ? enttype.key : ""}
+                    onValueChange={(enttype: NodeLabel | null) => setNodeType(enttype ? enttype.spacy : "")}
                 >
-                    <ComboboxInput placeholder="Select a Node Type" />
+                    <ComboboxInput placeholder={t("annotation.select-type")} />
                     <ComboboxContent>
                         <ComboboxList>
                             {(enttype: NodeLabel) => (
                                 <ComboboxItem key={enttype.spacy} value={enttype}>
-                                    {enttype.readable}
+                                    {t(enttype.key)}
                                 </ComboboxItem>
                             )}
                         </ComboboxList>
@@ -140,13 +141,13 @@ export function DeleteNode( {isLoading, nodes, handleDeleteNode }: DeleteNodePro
 
     return (
         <div className="flex flex-col gap-2">
-            <Label htmlFor="caption">{t("graphannotation.caption")}</Label>
+            <Label htmlFor="caption">{t("annotationcaption")}</Label>
             <Input
                 id="caption"
                 autoComplete="off"
                 disabled={isLoading}
                 className="flex-1"
-                placeholder={t("graphannotation.node")}
+                placeholder={t("annotationnode")}
                 value={searchedNode}
                 onChange={(e) => {
                     setSearchedNode(e.target.value)
@@ -197,7 +198,7 @@ export function DeleteNode( {isLoading, nodes, handleDeleteNode }: DeleteNodePro
                 }}
             >
                 <Trash className="w-4 h-4" />
-                {t("graphannotation.delete")}
+                {t("annotation.delete")}
             </Button>
         </div>
     )
@@ -242,13 +243,13 @@ export function UpdateNode({ isLoading, nodes, handleUpdateNode}: UpdateNodeProp
 
     return (
         <div className="flex flex-col gap-2">
-            <Label htmlFor="caption">{t("graphannotation.caption")}</Label>
+            <Label htmlFor="caption">{t("annotation.caption")}</Label>
             <Input
                 id="caption"
                 autoComplete="off"
                 disabled={isLoading}
                 className="flex-1"
-                placeholder={t("graphannotation.node")}
+                placeholder={t("annotation.node")}
                 value={searchedNode}
                 onChange={(e) => {
                     setSearchedNode(e.target.value)
@@ -277,15 +278,15 @@ export function UpdateNode({ isLoading, nodes, handleUpdateNode}: UpdateNodeProp
             <Combobox
                 id="newLabel"
                 items={NodeTypes}
-                itemToStringLabel={(enttype: NodeLabel) => enttype?.readable ?? ""}
+                itemToStringLabel={(enttype: NodeLabel) => enttype ? t(enttype.key) : ""}
                 onValueChange={(enttype: NodeLabel | null) => setNewLabel(enttype?.spacy ?? "")}
             >
-                <ComboboxInput placeholder="Select a Node Type" />
+                <ComboboxInput placeholder={t("annotation.select-type")}/>
                 <ComboboxContent>
                     <ComboboxList>
                         {(enttype: NodeLabel) => (
                             <ComboboxItem key={enttype.spacy} value={enttype}>
-                                {enttype.readable}
+                                {t(enttype.key)}
                             </ComboboxItem>
                         )}
                     </ComboboxList>
@@ -329,7 +330,7 @@ export function UpdateNode({ isLoading, nodes, handleUpdateNode}: UpdateNodeProp
                 }}
             >
                 <Upload className="w-4 h-4" />
-                {t("graphannotation.update")}
+                {t("annotation.update")}
             </Button>
         </div>
     )
@@ -389,7 +390,7 @@ export function AddLink({ isLoading, nodes, handleAddLink }: AddLinkProps){
                     autoComplete="off"
                     disabled={isLoading}
                     className="flex-1"
-                    placeholder={t("graphannotation.node")}
+                    placeholder={t("annotation.node")}
                     value={searchedNode1}
                     onChange={(e) => {
                         setSearchedNode1(e.target.value)
@@ -412,7 +413,7 @@ export function AddLink({ isLoading, nodes, handleAddLink }: AddLinkProps){
                     autoComplete="off"
                     disabled={isLoading}
                     className="flex-1"
-                    placeholder={t("graphannotation.node")}
+                    placeholder={t("annotation.node")}
                     value={searchedNode2}
                     onChange={(e) => {
                         setSearchedNode2(e.target.value)
@@ -434,7 +435,7 @@ export function AddLink({ isLoading, nodes, handleAddLink }: AddLinkProps){
                     autoComplete="off"
                     disabled={isLoading}
                     className="flex-1"
-                    placeholder={t("graphannotation.relation")}
+                    placeholder={t("annotation.relation")}
                     value={relationType}
                     onChange={(e) => setRelationType(e.target.value)}
                 >
@@ -445,7 +446,7 @@ export function AddLink({ isLoading, nodes, handleAddLink }: AddLinkProps){
                     autoComplete="off"
                     disabled={isLoading}
                     className="flex-1"
-                    placeholder={t("graphannotation.sentence")}
+                    placeholder={t("annotation.sentence")}
                     value={sentence}
                     onChange={(e) => setSentence(e.target.value)}
                 >
@@ -534,13 +535,13 @@ export function UpdateLink({ isLoading, links, handleUpdateLink}: UpdateLinkProp
 
     return (
         <div className="flex flex-col gap-2">
-            <Label htmlFor="caption">{t("graphannotation.caption")}</Label>
+            <Label htmlFor="caption">{t("annotation.caption")}</Label>
             <Input
                 id="caption"
                 autoComplete="off"
                 disabled={isLoading}
                 className="flex-1"
-                placeholder={t("graphannotation.node")}
+                placeholder={t("annotation.node")}
                 value={searchedLink}
                 onChange={(e) => {
                     setSearchedLink(e.target.value)
@@ -556,7 +557,7 @@ export function UpdateLink({ isLoading, links, handleUpdateLink}: UpdateLinkProp
                 }}
             >
             </Input>
-            <Label htmlFor="newCaption">{t("graphannotation.newcaption")}</Label>
+            <Label htmlFor="newCaption">{t("annotation.newcaption")}</Label>
             <Input
                 id="newCaption"
                 type="text"
@@ -589,7 +590,7 @@ export function UpdateLink({ isLoading, links, handleUpdateLink}: UpdateLinkProp
                 onClick={updateLink}
             >
                 <Upload className="w-4 h-4" />
-                {t("graphannotation.update")}
+                {t("annotation.update")}
             </Button>
         </div>
     )

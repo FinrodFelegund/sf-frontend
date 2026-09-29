@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button"
+import { useLanguage } from "@/hooks/language-hook"
 
 export function Popup(){
+    const { t } = useLanguage()
     const handleOpenSidePanel= async () => {
         try {
   
@@ -19,14 +21,14 @@ export function Popup(){
     return (
         <main className="w-[250px] p-4 flex flex-col items-center text-center bg-background text-foreground">
             <p className="text-sm text-muted-foreground mb-4">
-                Storyfinder works best in the side panel for a persistent experience.
+                {t("popup.description")}
             </p>
 
             <Button 
                 onClick={() => handleOpenSidePanel()}
                 className="w-full"
             >
-                Open Side Panel
+                {t("popup.open")}
             </Button>
         </main>
     )

@@ -1,4 +1,3 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000"
 export const UNAUTHORIZED_EVENT = "storyfinder:unauthorized"
 
 export class ApiError extends Error {
@@ -8,6 +7,15 @@ export class ApiError extends Error {
         this.name = "ApiError"
         this.status = status
     }
+}
+
+export async function getAPIBaseUrl(){
+    const url = await chrome.storage.local.get(["serverurl"])
+    if(url && typeof url.serverurl === "string"){
+        return url.serverurl
+    }
+
+    return "http://localhost:8000"
 }
 
 export async function assertAuthorized(response: Response){
@@ -27,9 +35,10 @@ export const isAuthError = (error: unknown) => {
 }
 
 export async function getCookie(): Promise<string | null>{
+    const api_base_url = await getAPIBaseUrl()
     try {
         const cookie = await chrome.cookies.get({
-            url: API_BASE_URL,
+            url: api_base_url,
             name: 'csrftoken',
         })
 
@@ -41,9 +50,10 @@ export async function getCookie(): Promise<string | null>{
 }
 
 export async function ensureCSRFToken(): Promise<void> {
+    const api_base_url = await getAPIBaseUrl()
     const cookie = await getCookie()
     if(!cookie){
-        const response = await fetch(`${API_BASE_URL}/api/v1/csrf/`, {
+        const response = await fetch(`${api_base_url}/api/v1/csrf/`, {
             method: 'GET',
             credentials: 'include',
         })
@@ -66,10 +76,11 @@ export async function getAuthHeaders(): Promise<HeadersInit> {
 }
 
 export async function apiFetch(path: string, init: RequestInit = {}) {
+    const api_base_url = await getAPIBaseUrl()
     await ensureCSRFToken()
     const headers = await getAuthHeaders()
 
-    const response = await fetch(`${API_BASE_URL}${path}`, {
+    const response = await fetch(`${api_base_url}${path}`, {
         ...init,
         headers: {...headers, ...(init.headers ?? {}) },
         credentials: "include",

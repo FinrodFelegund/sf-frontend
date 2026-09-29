@@ -1,5 +1,5 @@
 import type { LoginRequest, User, RegisterRequest, UnlockRequest } from "./types";
-import { API_BASE_URL, ensureCSRFToken, getCookie } from "./client";
+import { getAPIBaseUrl, ensureCSRFToken, getCookie } from "./client";
 
 export class AuthError extends Error {
     status: number
@@ -61,12 +61,14 @@ export async function removeAuthToken(){
 }
 
 export async function login(credentials: LoginRequest): Promise<User> {
+    const api_base_url = await getAPIBaseUrl()
     await ensureCSRFToken()
     const cookie = await getCookie()
+    console.log(`API Base URL ${api_base_url}`)
 
     let response: Response
     try {
-        response = await fetch(`${API_BASE_URL}/api/v1/auth/login/`, {
+        response = await fetch(`${api_base_url}/api/v1/auth/login/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -101,12 +103,12 @@ export async function login(credentials: LoginRequest): Promise<User> {
     return user
 }
 export async function logout(): Promise<void> {
+    const api_base_url = await getAPIBaseUrl()
     const token = await getAuthToken()
     const cookie = await getCookie()
 
-
     try {
-        await fetch(`${API_BASE_URL}/api/v1/auth/logout/`, {
+        await fetch(`${api_base_url}/api/v1/auth/logout/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -124,11 +126,12 @@ export async function logout(): Promise<void> {
 }
 
 export async function register(credentials: RegisterRequest): Promise<UnlockRequest> {
+    const api_base_url = await getAPIBaseUrl()
     await ensureCSRFToken()
     const cockie = await getCookie()
 
     try {
-        const response = await fetch(`${API_BASE_URL}/api/v1/registration/register/`, {
+        const response = await fetch(`${api_base_url}/api/v1/registration/register/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -153,12 +156,13 @@ export async function register(credentials: RegisterRequest): Promise<UnlockRequ
 }
 
 export async function unlock(id: string): Promise<String> {
+    const api_base_url = await getAPIBaseUrl()
     await ensureCSRFToken()
     const cockie = await getCookie()
 
     try {
         
-        const response = await fetch(`${API_BASE_URL}/api/v1/registration/unlock/`, {
+        const response = await fetch(`${api_base_url}/api/v1/registration/unlock/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

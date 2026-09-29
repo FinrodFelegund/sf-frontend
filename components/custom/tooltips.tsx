@@ -76,7 +76,7 @@ export function NodeTooltip({ node, deleteNode, canDelete, expanded, hidden, onT
             {websites.length > 0 && (
                 <>
                     <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
-                        <span>Found on</span>
+                        <span>{t("tooltip.found-on")}</span>
                         <span>{websites.length}</span>
                     </div>
                     <div className="max-h-24 overflow-y-auto overscroll-contain rounded-md border border-border">
@@ -98,6 +98,7 @@ export function NodeTooltip({ node, deleteNode, canDelete, expanded, hidden, onT
 
 export function LinkTooltip({ link }: { link: GraphLink }){
     const sentences = link.sentences ?? []
+    const { t } = useLanguage()
 
     const groups = new Map<string, GraphSentence[]>()
     for(const sentence of sentences){
@@ -119,7 +120,7 @@ export function LinkTooltip({ link }: { link: GraphLink }){
             {sentences.length > 0 && (
                 <>
                     <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
-                        <span>Sentences</span>
+                        <span>{t("tooltip.sentences")}</span>
                         <span>{sentences.length}</span>
                     </div>
 

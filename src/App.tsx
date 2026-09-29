@@ -11,14 +11,10 @@ import { useLanguage } from "@/hooks/language-hook"
 import { useAuth } from "@/hooks/authentication-hook"
 
 
-//import formally from "@/src/assets/formally.jpeg"
-
-
 export function App() {
-
   
   const [currentView, setCurrentView] = useState("home")
-  const [currentGraph, setCurrentGraph] = useState("local")
+  const [currentGraph, setCurrentGraph] = useState("global")
   const [currentSite, setCurrentSite] = useState<Sitedata | null>(null)
   const { t } = useLanguage()
   const { isAuthenticated, isReady } = useAuth()
@@ -30,6 +26,14 @@ export function App() {
     await chrome.storage.local.set({"view": view})
     setCurrentView(view)
   }
+
+  useEffect(() => {
+    chrome.storage.local.get(["graphtype"]).then((result) => {
+      if(result.graphtype === "local" || result.graphtype === "global"){
+        setCurrentGraph(result.graphtype)
+      }
+    })
+  }, [])
 
   useEffect(() => {
     if(!isReady){
@@ -129,6 +133,7 @@ export function App() {
     <main>
       <Navigation 
         currentView={currentView}
+        currentGraph={currentGraph}
         setCurrentView={setCurrentViewState}
         setCurrentGraph={setCurrentGraph}
         currentUrl={currentSite ? currentSite.url : "no url provided"}
